@@ -38,11 +38,11 @@ func (h *HTTPHandler) HandleCreatePost(w http.ResponseWriter, r *http.Request) {
 	//		Key: newUrlKey,
 	//	}
 	//
-	_, err = w.Write(rawResponse)
-	//	if err != nil {
-	//		http.Error(w, err.Error(), http.StatusBadRequest)
-	//		return
-	//	}
-	//
 	w.Header().Set("Content-Type", "application/json")
+	_, err = w.Write(rawResponse)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	//
 }
