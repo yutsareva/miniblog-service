@@ -1,72 +1,87 @@
 package in_memory
 
 import (
-	"encoding/json"
 	"github.com/google/uuid"
-	"log"
 	"miniblog/storage"
 	"miniblog/storage/models"
+	"sync"
 	"time"
+	//"log"
 )
 
-type post struct {
-	Id        string    `json:"id"`
-	AuthorId  string    `json:"author_id"`
-	Text      string    `json:"text"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-//func (p *post) Id() string {
-//	return p.Id
-//}
-//
-//func (p *post) AuthorId() string {
-//	return p.authorId
-//}
-//
-//func (p *post) Text() string {
-//	return p.text
-//}
-//
-//func (p *post) CreatedAt() time.Time {
-//	return p.createdAt
-//}
-
 type InMemoryStorage struct {
-	posts map[string]post
+	mut           sync.RWMutex
+	posts         map[string]models.Post
+	postIdsByUser map[string][]string
 }
 
-func (s *InMemoryStorage) GetPostById(id *string) models.Post {
-	ret := s.posts[*id]
-	return &ret
-}
 
-func (s *InMemoryStorage) GetPostsByUserId(userId *string, page *string, size int) []models.Post {
-	postsToReturn := make([]models.Post, 0)
-	for _, post := range s.posts {
-		if post.AuthorId == *userId && post.Id > *page {
-			appendPost := post
-			postsToReturn = append(postsToReturn, &appendPost)
+func (s *InMemoryStorage) GetPostsByUserId(userId *string, page *string, size int) ([]models.Post, *string) {
+	postIds, found := s.postIdsByUser[*userId]
+	var posts []models.Post
+	if !found {
+		if page != nil {
+			return nil, nil
 		}
-		if len(postsToReturn) == size {
-			return postsToReturn
+		return posts, nil
+	}
+	postCount := len(postIds)
+	if page == nil {
+		first := 0
+		if  postCount - size > 0 {
+			first = postCount - size
+		}
+
+		for idx, _ := range postIds[first:] {
+			i := postCount - idx - 1
+			posts = append(posts, s.posts[postIds[i]])
+		}
+		return posts, &postIds[first]
+	}
+
+	var nextAfterLast *int
+	for i := postCount-1; i >= 0; i-- {
+		if postIds[i] == *page {
+			nextAfterLast = new(int)
+			*nextAfterLast = i
+			break
 		}
 	}
-	return postsToReturn
+	if nextAfterLast != nil {
+		first := 0
+		if  *nextAfterLast - size > 0 {
+			first = *nextAfterLast - size
+		}
+		for idx, _ := range postIds[first: *nextAfterLast] {
+			i := *nextAfterLast - idx - 1
+			posts = append(posts, s.posts[postIds[i]])
+		}
+		return posts, &postIds[first]
+	}
+	return nil, nil
 }
 
-func (s *InMemoryStorage) AddPost(userId *string, text *string) []byte {
+func (s *InMemoryStorage) AddPost(userId *string, text *string) models.Post {
 	id := uuid.New().String()
-	createdAt := time.Now()
-	p := post{id, *userId, *text, createdAt}
+	createdAt := time.Now().UTC().Format(time.RFC3339)
+	p := models.Post{id, *userId, *text, createdAt}
 	s.posts[p.Id] = p
-	j, err := json.Marshal(p)
-	if err != nil {
-		log.Fatalf("Failed to dump post to json: %s", err.Error())
+	s.postIdsByUser[p.AuthorId] = append(s.postIdsByUser[p.AuthorId], p.Id)
+	return p
+}
+
+func (s *InMemoryStorage) GetPost(postId *string) *models.Post {
+	post, found := s.posts[*postId]
+	if !found {
+		return nil
 	}
-	return j
+	return &post
 }
 
 func CreateInMemoryStorage() storage.Storage {
-	return &InMemoryStorage{make(map[string]post)}
+	return &InMemoryStorage{
+		//make(sync.RWMutex),
+		posts: make(map[string]models.Post),
+		postIdsByUser: make(map[string][]string),
+	}
 }

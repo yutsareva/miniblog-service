@@ -1,15 +1,22 @@
 package models
 
-type Post interface {
-	//Id() string
-	//AuthorId() string
-	//Text() string
-	//CreatedAt() time.Time
+import (
+	"encoding/json"
+	"log"
+)
+
+type Post struct {
+	Id        string    `json:"id"`
+	AuthorId  string    `json:"authorId"`
+	Text      string    `json:"text"`
+	CreatedAt string `json:"createdAt"`
+	// CreatedAt time.Time `json:"createdAt"`
 }
 
-//type PostJson struct {
-//	Id        string `json:"id"`
-//	AuthorId  string `json:"author_id"`
-//	Text      string `json:"text"`
-//	CreatedAt string `json:"created_at"`
-//}
+func (p *Post) ToJson() []byte {
+	j, err := json.Marshal(p)
+	if err != nil {
+		log.Fatalf("Failed to dump post to json: %s", err.Error())
+	}
+	return j
+}
