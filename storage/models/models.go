@@ -6,9 +6,9 @@ import (
 )
 
 type Post struct {
-	Id        string    `json:"id"`
-	AuthorId  string    `json:"authorId"`
-	Text      string    `json:"text"`
+	Id        string `json:"id"`
+	AuthorId  string `json:"authorId"`
+	Text      string `json:"text"`
 	CreatedAt string `json:"createdAt"`
 	// CreatedAt time.Time `json:"createdAt"`
 }

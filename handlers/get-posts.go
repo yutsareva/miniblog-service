@@ -1,19 +1,19 @@
 package handlers
 
 import (
-	"net/http"
-	"path"
-	"miniblog/storage/models"
 	"encoding/json"
 	"log"
+	"miniblog/storage/models"
+	"net/http"
+	"path"
 	"strconv"
 )
 
 var DEFAULT_PAGE_SIZE = 10
 
 type PostByUserIdResponse struct {
-	Posts []models.Post `json:"posts,omitempty"`
-	NextPage *string `json:"nextPage,omitempty"`
+	Posts    []models.Post `json:"posts,omitempty"`
+	NextPage *string       `json:"nextPage,omitempty"`
 }
 
 func (p *PostByUserIdResponse) ToJson() []byte {

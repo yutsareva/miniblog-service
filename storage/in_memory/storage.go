@@ -6,7 +6,6 @@ import (
 	"miniblog/storage/models"
 	"sync"
 	"time"
-	//"log"
 )
 
 type InMemoryStorage struct {
@@ -15,10 +14,9 @@ type InMemoryStorage struct {
 	postIdsByUser map[string][]string
 }
 
-
 func (s *InMemoryStorage) GetPostsByUserId(userId *string, page *string, size int) ([]models.Post, *string) {
 	postIds, found := s.postIdsByUser[*userId]
-	var posts []models.Post
+	posts := make([]models.Post, 0)
 	if !found {
 		if page != nil {
 			return nil, nil
@@ -28,7 +26,7 @@ func (s *InMemoryStorage) GetPostsByUserId(userId *string, page *string, size in
 	postCount := len(postIds)
 	if page == nil {
 		first := 0
-		if  postCount - size > 0 {
+		if postCount-size > 0 {
 			first = postCount - size
 		}
 
@@ -36,27 +34,33 @@ func (s *InMemoryStorage) GetPostsByUserId(userId *string, page *string, size in
 			i := postCount - idx - 1
 			posts = append(posts, s.posts[postIds[i]])
 		}
-		return posts, &postIds[first]
+		if first == 0 {
+			return posts, nil
+		}
+		return posts, &postIds[first-1]
 	}
 
-	var nextAfterLast *int
-	for i := postCount-1; i >= 0; i-- {
+	var last *int
+	for i := postCount - 1; i >= 0; i-- {
 		if postIds[i] == *page {
-			nextAfterLast = new(int)
-			*nextAfterLast = i
+			last = new(int)
+			*last = i
 			break
 		}
 	}
-	if nextAfterLast != nil {
+	if last != nil {
 		first := 0
-		if  *nextAfterLast - size > 0 {
-			first = *nextAfterLast - size
+		if *last-size+1 >= 0 {
+			first = *last - size + 1
 		}
-		for idx, _ := range postIds[first: *nextAfterLast] {
-			i := *nextAfterLast - idx - 1
+		for idx, _ := range postIds[first : *last+1] {
+			i := *last - idx
 			posts = append(posts, s.posts[postIds[i]])
 		}
-		return posts, &postIds[first]
+		if first == 0 {
+			return posts, nil
+		}
+		return posts, &postIds[first-1]
 	}
 	return nil, nil
 }
@@ -81,7 +85,7 @@ func (s *InMemoryStorage) GetPost(postId *string) *models.Post {
 func CreateInMemoryStorage() storage.Storage {
 	return &InMemoryStorage{
 		//make(sync.RWMutex),
-		posts: make(map[string]models.Post),
+		posts:         make(map[string]models.Post),
 		postIdsByUser: make(map[string][]string),
 	}
 }
