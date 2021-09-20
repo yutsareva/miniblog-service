@@ -37,11 +37,11 @@ func CreateServer() *http.Server {
 	} else if storageMode == Mongo {
 		mongoUrl, found := os.LookupEnv("MONGO_URL")
 		if !found {
-			mongoUrl = "default"
+			panic("'MONGO_URL' not specified")
 		}
 		mongoDbName, found := os.LookupEnv("MONGO_DBNAME")
 		if !found {
-			mongoDbName = "default"
+			panic("'MONGO_DBNAME' not specified")
 		}
 
 		storage = persistent.CreateMongoStorage(mongoUrl, mongoDbName)
