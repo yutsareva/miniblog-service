@@ -10,7 +10,6 @@ type Post struct {
 	AuthorId  string `json:"authorId"`
 	Text      string `json:"text"`
 	CreatedAt string `json:"createdAt"`
-	// CreatedAt time.Time `json:"createdAt"`
 }
 
 func (p *Post) ToJson() []byte {

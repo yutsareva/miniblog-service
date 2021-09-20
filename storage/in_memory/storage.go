@@ -15,6 +15,9 @@ type InMemoryStorage struct {
 }
 
 func (s *InMemoryStorage) GetPostsByUserId(userId *string, page *string, size int) ([]models.Post, *string) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
 	postIds, found := s.postIdsByUser[*userId]
 	posts := make([]models.Post, 0)
 	if !found {
@@ -66,6 +69,9 @@ func (s *InMemoryStorage) GetPostsByUserId(userId *string, page *string, size in
 }
 
 func (s *InMemoryStorage) AddPost(userId *string, text *string) models.Post {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
 	id := uuid.New().String()
 	createdAt := time.Now().UTC().Format(time.RFC3339)
 	p := models.Post{id, *userId, *text, createdAt}
@@ -75,6 +81,9 @@ func (s *InMemoryStorage) AddPost(userId *string, text *string) models.Post {
 }
 
 func (s *InMemoryStorage) GetPost(postId *string) *models.Post {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
 	post, found := s.posts[*postId]
 	if !found {
 		return nil
@@ -84,7 +93,6 @@ func (s *InMemoryStorage) GetPost(postId *string) *models.Post {
 
 func CreateInMemoryStorage() storage.Storage {
 	return &InMemoryStorage{
-		//make(sync.RWMutex),
 		posts:         make(map[string]models.Post),
 		postIdsByUser: make(map[string][]string),
 	}

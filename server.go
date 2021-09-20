@@ -4,25 +4,53 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"miniblog/handlers"
+	"miniblog/storage"
 	"miniblog/storage/in_memory"
+	"miniblog/storage/persistent"
 	"net/http"
 	"os"
 	"time"
 )
 
+type StorageMode string
+
+const (
+	InMemory StorageMode = "inmemory"
+	Mongo                = "mongo"
+)
+
 func CreateServer() *http.Server {
 	r := mux.NewRouter()
-
-	handler := &handlers.HTTPHandler{in_memory.CreateInMemoryStorage()}
-
-	r.HandleFunc("/api/v1/posts", handler.HandleCreatePost).Methods("POST")
-	r.HandleFunc("/api/v1/posts/{postId}", handler.HandleGetPost).Methods("GET")
-	r.HandleFunc("/api/v1/users/{userId}/posts", handler.HandleGetPosts).Methods("GET")
 
 	port, found := os.LookupEnv("SERVER_PORT")
 	if !found {
 		port = "8080"
 	}
+
+	storageMode, found := os.LookupEnv("STORAGE_MODE")
+	if !found {
+		storageMode = "inmemory"
+	}
+	var storage storage.Storage
+	if StorageMode(storageMode) == InMemory {
+		storage = in_memory.CreateInMemoryStorage()
+	} else if storageMode == Mongo {
+		mongoUrl, found := os.LookupEnv("MONGO_URL")
+		if !found {
+			mongoUrl = "default"
+		}
+		mongoDbName, found := os.LookupEnv("MONGO_DBNAME")
+		if !found {
+			mongoDbName = "default"
+		}
+
+		storage = persistent.CreateMongoStorage(mongoUrl, mongoDbName)
+	}
+	handler := &handlers.HTTPHandler{Storage: storage}
+
+	r.HandleFunc("/api/v1/posts", handler.HandleCreatePost).Methods("POST")
+	r.HandleFunc("/api/v1/posts/{postId}", handler.HandleGetPost).Methods("GET")
+	r.HandleFunc("/api/v1/users/{userId}/posts", handler.HandleGetPosts).Methods("GET")
 
 	return &http.Server{
 		Handler:      r,
