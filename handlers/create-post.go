@@ -21,7 +21,7 @@ func (h *HTTPHandler) HandleCreatePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid user token", http.StatusUnauthorized)
 		return
 	}
-	post := h.Storage.AddPost(&userId, &data.Text)
+	post, _ := h.Storage.AddPost(r.Context(), &userId, &data.Text)
 	rawResponse := post.ToJson()
 
 	w.Header().Set("Content-Type", "application/json")

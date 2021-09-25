@@ -7,7 +7,7 @@ import (
 
 func (h *HTTPHandler) HandleGetPost(w http.ResponseWriter, r *http.Request) {
 	postId := path.Base(r.URL.Path)
-	maybePost := h.Storage.GetPost(&postId)
+	maybePost, _ := h.Storage.GetPost(r.Context(), &postId)
 	if maybePost == nil {
 		http.Error(w, "Post not found.", http.StatusNotFound)
 		return

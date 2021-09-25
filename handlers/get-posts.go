@@ -44,7 +44,7 @@ func (h *HTTPHandler) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	posts, nextPage := h.Storage.GetPostsByUserId(&userId, page, size)
+	posts, nextPage, _ := h.Storage.GetPostsByUserId(r.Context(), &userId, page, size)
 
 	if posts == nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
