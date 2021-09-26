@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
+	"miniblog/storage"
 	"miniblog/storage/models"
 	"net/http"
 	"path"
@@ -14,14 +16,6 @@ var DEFAULT_PAGE_SIZE = 10
 type PostByUserIdResponse struct {
 	Posts    []models.Post `json:"posts,omitempty"`
 	NextPage *string       `json:"nextPage,omitempty"`
-}
-
-func (p *PostByUserIdResponse) ToJson() []byte {
-	j, err := json.Marshal(p)
-	if err != nil {
-		log.Fatalf("Failed to dump posts by user to json: %s", err.Error())
-	}
-	return j
 }
 
 func (h *HTTPHandler) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
@@ -44,18 +38,29 @@ func (h *HTTPHandler) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	posts, nextPage, _ := h.Storage.GetPostsByUserId(r.Context(), &userId, page, size)
-
-	if posts == nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+	posts, nextPage, err := h.Storage.GetPostsByUserId(r.Context(), &userId, page, size)
+	if err != nil {
+		if errors.As(err, &storage.ClientError) {
+			log.Printf("Client error while getting posts for author: %s", err.Error())
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		log.Printf("Failed to get posts for author: %s", err.Error())
+		http.Error(w, INTERNAL_ERROR_MESSAGE, http.StatusInternalServerError)
 		return
 	}
+
 	postsResponse := PostByUserIdResponse{
 		posts,
 		nextPage,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	rawResponse := postsResponse.ToJson()
+	rawResponse, err := json.Marshal(postsResponse)
+	if err != nil {
+		log.Printf("Failed to dump posts by user to json: %s", err.Error())
+		http.Error(w, INTERNAL_ERROR_MESSAGE, http.StatusInternalServerError)
+		return
+	}
 	w.Write(rawResponse)
 }

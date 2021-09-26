@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/gorilla/mux"
+	_ "github.com/motemen/go-loghttp/global"
 	"log"
 	"miniblog/handlers"
 	"miniblog/storage"
@@ -10,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"time"
-    _ "github.com/motemen/go-loghttp/global"
 )
 
 type StorageMode string
@@ -44,7 +44,6 @@ func CreateServer() *http.Server {
 		if !found {
 			panic("'MONGO_DBNAME' not specified")
 		}
-
 		storage = persistent.CreateMongoStorage(mongoUrl, mongoDbName)
 	}
 	handler := &handlers.HTTPHandler{Storage: storage}
@@ -61,7 +60,6 @@ func CreateServer() *http.Server {
 		ReadTimeout:  15 * time.Second,
 	}
 }
-
 
 func main() {
 	srv := CreateServer()

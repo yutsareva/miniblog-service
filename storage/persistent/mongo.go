@@ -2,35 +2,24 @@ package persistent
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"log"
-	"time"
-	//"github.com/google/uuid"
-	"miniblog/storage"
-	"miniblog/storage/models"
-	//"time"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/x/bsonx"
+	"log"
+	"miniblog/storage"
+	"miniblog/storage/models"
+	"time"
 )
 
 type Post struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	Id        primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
 	AuthorId  string             `bson:"authorId,omitempty" json:"authorId,omitempty"`
 	Text      string             `bson:"text,omitempty" json:"text,omitempty"`
 	CreatedAt string             `bson:"createdAt,omitempty" json:"createdAt,omitempty"`
-}
-
-func (p *Post) ToJson() []byte {
-	j, err := json.Marshal(p)
-	if err != nil {
-		log.Fatalf("Failed to dump post to json: %s", err.Error())
-	}
-	return j
 }
 
 type MongoStorage struct {
@@ -38,24 +27,79 @@ type MongoStorage struct {
 }
 
 func (s *MongoStorage) GetPostsByUserId(
-		ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
+	ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
 
 	options := options.Find()
 	options.SetSort(bson.D{{"_id", -1}})
-	options.SetLimit(size + 1)
-	cursor, err := s.posts.Find(ctx, bson.M{{"authorId": *userId}, {"_id", bson.D{{"$lte", *page}}}} options)
-	return nil, nil, nil
+	options.SetLimit(int64(size + 1))
+
+	minPage := "ffffffffffffffffffffffff"
+	if page == nil {
+		page = &minPage
+	}
+	log.Printf("page: %s", *page)
+	pageMongoId, err := primitive.ObjectIDFromHex(*page)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to convert provided page to Mongo object id: %s, %w", err.Error(), storage.ClientError)
+	}
+	cursor, err := s.posts.Find(
+		ctx,
+		bson.D{
+			{"authorId", *userId},
+			{"_id", bson.D{{"$lte", pageMongoId}}},
+		},
+		options,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to find posts by author: %s, %w", err.Error(), storage.InternalError)
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			log.Printf("Cursor closing failed: %s", err.Error())
+		}
+	}(cursor, ctx)
+
+	posts := make([]models.Post, 0)
+	var nextPage string
+	for len(posts) != size+1 && cursor.Next(ctx) {
+		var nextPost Post
+		if err = cursor.Decode(&nextPost); err != nil {
+			return nil, nil, fmt.Errorf("decode error: %s, %w", err, storage.InternalError)
+		}
+		if len(posts) == size {
+			nextPage = nextPost.Id.Hex()
+			return posts, &nextPage, nil
+		}
+		posts = append(posts, &nextPost)
+	}
+	if len(posts) == 0 && *page != minPage {
+		return nil, nil, fmt.Errorf("provided page for non-existent user", storage.ClientError)
+	}
+	return posts, nil, nil
 }
 
-func (s *MongoStorage) AddPost(ctx context.Context, userId *string, text *string) (models.Post, error) {
-
-
-	return nil, nil
+func (s *MongoStorage) AddPost(ctx context.Context, userId string, text string) (models.Post, error) {
+	post := Post{
+		Text:      text,
+		AuthorId:  userId,
+		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	id, err := s.posts.InsertOne(ctx, post)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected error: %w", storage.InternalError)
+	}
+	post.Id = id.InsertedID.(primitive.ObjectID)
+	return &post, nil
 }
 
-func (s *MongoStorage) GetPost(ctx context.Context, postId *string) (models.Post, error) {
+func (s *MongoStorage) GetPost(ctx context.Context, postId string) (models.Post, error) {
 	var result Post
-	err := s.posts.FindOne(ctx, bson.M{"_id": postId}).Decode(&result)
+	postMongoId, err := primitive.ObjectIDFromHex(postId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert provided id to Mongo object id %w", storage.ClientError)
+	}
+	err = s.posts.FindOne(ctx, bson.M{"_id": postMongoId}).Decode(&result)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, fmt.Errorf("no document with id %v - %w", postId, storage.NotFoundError)
@@ -71,9 +115,7 @@ func CreateMongoStorage(dbUrl, dbName string) storage.Storage {
 	if err != nil {
 		panic(err)
 	}
-
 	posts := client.Database(dbName).Collection("posts")
-
 	ensureIndexes(ctx, posts)
 
 	return &MongoStorage{

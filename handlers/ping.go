@@ -5,4 +5,5 @@ import (
 )
 
 func (h *HTTPHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
+
 }

@@ -2,9 +2,8 @@ package in_memory
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"github.com/google/uuid"
-	"log"
 	"miniblog/storage"
 	"miniblog/storage/models"
 	"sync"
@@ -16,14 +15,6 @@ type Post struct {
 	AuthorId  string `json:"authorId"`
 	Text      string `json:"text"`
 	CreatedAt string `json:"createdAt"`
-}
-
-func (p Post) ToJson() []byte { // TODO why no pointer ??
-	j, err := json.Marshal(p)
-	if err != nil {
-		log.Fatalf("Failed to dump post to json: %s", err.Error())
-	}
-	return j
 }
 
 type InMemoryStorage struct {
@@ -41,7 +32,7 @@ func (s *InMemoryStorage) GetPostsByUserId(
 	posts := make([]models.Post, 0)
 	if !found {
 		if page != nil {
-			return nil, nil, nil
+			return nil, nil, fmt.Errorf("provided page for non-existent user", storage.ClientError)
 		}
 		return posts, nil, nil
 	}
@@ -54,7 +45,8 @@ func (s *InMemoryStorage) GetPostsByUserId(
 
 		for idx := range postIds[first:] {
 			i := postCount - idx - 1
-			posts = append(posts, s.posts[postIds[i]])
+			post := s.posts[postIds[i]]
+			posts = append(posts, &post)
 		}
 		if first == 0 {
 			return posts, nil, nil
@@ -70,24 +62,26 @@ func (s *InMemoryStorage) GetPostsByUserId(
 			break
 		}
 	}
-	if last != nil {
-		first := 0
-		if *last-size+1 >= 0 {
-			first = *last - size + 1
-		}
-		for idx := range postIds[first : *last+1] {
-			i := *last - idx
-			posts = append(posts, s.posts[postIds[i]])
-		}
-		if first == 0 {
-			return posts, nil, nil
-		}
-		return posts, &postIds[first-1], nil
+	if last == nil {
+		return nil, nil, fmt.Errorf("page not found", storage.ClientError)
 	}
-	return nil, nil, nil
+	first := 0
+	if *last-size+1 >= 0 {
+		first = *last - size + 1
+	}
+	for idx := range postIds[first : *last+1] {
+		i := *last - idx
+		post := s.posts[postIds[i]]
+		posts = append(posts, &post)
+	}
+	if first == 0 {
+		return posts, nil, nil
+	}
+	return posts, &postIds[first-1], nil
+
 }
 
-func (s *InMemoryStorage) AddPost(ctx context.Context, userId *string, text *string) (models.Post, error) {
+func (s *InMemoryStorage) AddPost(ctx context.Context, userId string, text string) (models.Post, error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -95,8 +89,8 @@ func (s *InMemoryStorage) AddPost(ctx context.Context, userId *string, text *str
 	createdAt := time.Now().UTC().Format(time.RFC3339)
 	p := Post{
 		Id:        id,
-		AuthorId:  *userId,
-		Text:      *text,
+		AuthorId:  userId,
+		Text:      text,
 		CreatedAt: createdAt,
 	}
 	s.posts[p.Id] = p
@@ -104,11 +98,11 @@ func (s *InMemoryStorage) AddPost(ctx context.Context, userId *string, text *str
 	return &p, nil
 }
 
-func (s *InMemoryStorage) GetPost(ctx context.Context, postId *string) (models.Post, error) {
+func (s *InMemoryStorage) GetPost(ctx context.Context, postId string) (models.Post, error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	post, found := s.posts[*postId]
+	post, found := s.posts[postId]
 	if !found {
 		return nil, nil
 	}
