@@ -104,7 +104,7 @@ func (s *InMemoryStorage) GetPost(ctx context.Context, postId string) (models.Po
 
 	post, found := s.posts[postId]
 	if !found {
-		return nil, nil
+		return nil, fmt.Errorf("post %s not found: %w", postId, storage.NotFoundError)
 	}
 	return &post, nil
 }

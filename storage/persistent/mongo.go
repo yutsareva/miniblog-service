@@ -87,7 +87,7 @@ func (s *MongoStorage) AddPost(ctx context.Context, userId string, text string) 
 	}
 	id, err := s.posts.InsertOne(ctx, post)
 	if err != nil {
-		return nil, fmt.Errorf("unexpected error: %w", storage.InternalError)
+		return nil, fmt.Errorf("failed to insert post: %w", storage.InternalError)
 	}
 	post.Id = id.InsertedID.(primitive.ObjectID)
 	return &post, nil
@@ -102,9 +102,9 @@ func (s *MongoStorage) GetPost(ctx context.Context, postId string) (models.Post,
 	err = s.posts.FindOne(ctx, bson.M{"_id": postMongoId}).Decode(&result)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, fmt.Errorf("no document with id %v - %w", postId, storage.NotFoundError)
+			return nil, fmt.Errorf("no document with id %v: %w", postId, storage.NotFoundError)
 		}
-		return nil, fmt.Errorf("somehting went wroing - %w", storage.InternalError)
+		return nil, fmt.Errorf("failed to find post: %w", storage.InternalError)
 	}
 	return &result, nil
 }
