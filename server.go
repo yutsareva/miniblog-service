@@ -44,7 +44,16 @@ func CreateServer() *http.Server {
 		if !found {
 			panic("'MONGO_DBNAME' not specified")
 		}
-		storage = persistent.CreateMongoStorage(mongoUrl, mongoDbName)
+		cached, found := os.LookupEnv("STORAGE_MODE")
+		if !found || cached != "cached" {
+			storage = persistent.CreateMongoStorage(mongoUrl, mongoDbName)
+		} else {
+			redisUrl, found := os.LookupEnv("REDIS_URL")
+			if !found {
+				panic("'REDIS_URL' was not provided for 'cached' STORAGE_MODE")
+			}
+			storage = persistent_cached.CreateMongoCachedWithRedis(mongoUrl, mongoDbName, redisUrl)
+		}
 	}
 	handler := &handlers.HTTPHandler{Storage: storage}
 
