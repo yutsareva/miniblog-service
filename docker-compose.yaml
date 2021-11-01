@@ -10,7 +10,12 @@ services:
       STORAGE_MODE: 'mongo'
       MONGO_URL: 'mongodb://database:27017'
       MONGO_DBNAME: 'miniblogs'
+      REDIS_URL: 'cache:6739'
   database:
     image: mongo:4.4
     ports:
       - 27017:27017
+  cache:
+    image: redis:6.2.6
+    ports:
+      - 6739:6739

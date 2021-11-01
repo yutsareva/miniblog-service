@@ -8,6 +8,7 @@ import (
 	"miniblog/storage"
 	"miniblog/storage/in_memory"
 	"miniblog/storage/persistent"
+	"miniblog/storage/persistent_cached"
 	"net/http"
 	"os"
 	"time"
@@ -18,6 +19,7 @@ type StorageMode string
 const (
 	InMemory StorageMode = "inmemory"
 	Mongo                = "mongo"
+	MongoWithCache       = "cached"
 )
 
 func CreateServer() *http.Server {
@@ -35,7 +37,7 @@ func CreateServer() *http.Server {
 	var storage storage.Storage
 	if StorageMode(storageMode) == InMemory {
 		storage = in_memory.CreateInMemoryStorage()
-	} else if storageMode == Mongo {
+	} else {
 		mongoUrl, found := os.LookupEnv("MONGO_URL")
 		if !found {
 			panic("'MONGO_URL' not specified")
@@ -44,15 +46,17 @@ func CreateServer() *http.Server {
 		if !found {
 			panic("'MONGO_DBNAME' not specified")
 		}
-		cached, found := os.LookupEnv("STORAGE_MODE")
-		if !found || cached != "cached" {
+		if StorageMode(storageMode) == Mongo {
 			storage = persistent.CreateMongoStorage(mongoUrl, mongoDbName)
-		} else {
+		} else if StorageMode(storageMode) == MongoWithCache {
 			redisUrl, found := os.LookupEnv("REDIS_URL")
 			if !found {
 				panic("'REDIS_URL' was not provided for 'cached' STORAGE_MODE")
 			}
-			storage = persistent_cached.CreateMongoCachedWithRedis(mongoUrl, mongoDbName, redisUrl)
+			persistentStorage := persistent.CreateMongoStorage(mongoUrl, mongoDbName)
+			storage = persistent_cached.CreatePersistentStorageCachedWithRedis(persistentStorage, redisUrl)
+		} else {
+			panic("Invalid 'STORAGE_MODE'")
 		}
 	}
 	handler := &handlers.HTTPHandler{Storage: storage}
