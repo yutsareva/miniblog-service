@@ -16,18 +16,43 @@ import (
 )
 
 type Post struct {
-	Id        primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
-	AuthorId  string             `bson:"authorId,omitempty" json:"authorId,omitempty"`
-	Text      string             `bson:"text,omitempty" json:"text,omitempty"`
-	CreatedAt string             `bson:"createdAt,omitempty" json:"createdAt,omitempty"`
+	Id             primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	AuthorId       string             `bson:"authorId,omitempty" json:"authorId,omitempty"`
+	Text           string             `bson:"text,omitempty" json:"text,omitempty"`
+	CreatedAt      string             `bson:"createdAt,omitempty" json:"createdAt,omitempty"`
+	LastModifiedAt string             `bson:"lastModifiedAt,omitempty" json:"lastModifiedAt,omitempty"`
 }
 
 type MongoStorage struct {
 	posts *mongo.Collection
 }
 
-func (s *MongoStorage) PatchPost(ctx context.Context, id string, userId string, text string) (models.Post, error) {
-	panic("implement me")
+func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId string, text string) (models.Post, error) {
+	var result Post
+	postMongoId, err := primitive.ObjectIDFromHex(postId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert provided id to Mongo object id %w", storage.ClientError)
+	}
+	filter := bson.M{"_id": postMongoId}
+	update := bson.M{"authorId": userId, "text": text, "lastModifiedAt": time.Now().UTC().Format(time.RFC3339)}
+
+	upsert := false
+	after := options.After
+	opt := options.FindOneAndUpdateOptions{
+		ReturnDocument: &after,
+		Upsert:         &upsert,
+	}
+	mongoResult := s.posts.FindOneAndUpdate(ctx, filter, update, &opt)
+	err = mongoResult.Err()
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, fmt.Errorf("no document with id %v: %w", postId, storage.NotFoundError)
+		}
+		return nil, fmt.Errorf("failed to find post: %w", storage.InternalError)
+	}
+
+	mongoResult.Decode(&result)
+	return &result, nil
 }
 
 func (s *MongoStorage) GetPostsByUserId(
@@ -84,10 +109,12 @@ func (s *MongoStorage) GetPostsByUserId(
 }
 
 func (s *MongoStorage) AddPost(ctx context.Context, userId string, text string) (models.Post, error) {
+	now := time.Now().UTC().Format(time.RFC3339)
 	post := Post{
-		Text:      text,
-		AuthorId:  userId,
-		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		Text:           text,
+		AuthorId:       userId,
+		CreatedAt:      now,
+		LastModifiedAt: now,
 	}
 	id, err := s.posts.InsertOne(ctx, post)
 	if err != nil {

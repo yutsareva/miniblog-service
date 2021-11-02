@@ -11,10 +11,10 @@ import (
 )
 
 type Post struct {
-	Id        string `json:"id"`
-	AuthorId  string `json:"authorId"`
-	Text      string `json:"text"`
-	CreatedAt string `json:"createdAt"`
+	Id             string `json:"id"`
+	AuthorId       string `json:"authorId"`
+	Text           string `json:"text"`
+	CreatedAt      string `json:"createdAt"`
 	LastModifiedAt string `json:"lastModifiedAt"`
 }
 
@@ -103,10 +103,10 @@ func (s *InMemoryStorage) AddPost(ctx context.Context, userId string, text strin
 	id := uuid.New().String()
 	createdAt := time.Now().UTC().Format(time.RFC3339)
 	p := Post{
-		Id:        id,
-		AuthorId:  userId,
-		Text:      text,
-		CreatedAt: createdAt,
+		Id:             id,
+		AuthorId:       userId,
+		Text:           text,
+		CreatedAt:      createdAt,
 		LastModifiedAt: createdAt,
 	}
 	s.posts[p.Id] = p

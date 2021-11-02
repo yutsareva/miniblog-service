@@ -17,9 +17,9 @@ import (
 type StorageMode string
 
 const (
-	InMemory StorageMode = "inmemory"
-	Mongo                = "mongo"
-	MongoWithCache       = "cached"
+	InMemory       StorageMode = "inmemory"
+	Mongo                      = "mongo"
+	MongoWithCache             = "cached"
 )
 
 func CreateServer() *http.Server {
