@@ -128,10 +128,10 @@ func (fn RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 type post struct {
-	Id        string    `json:"id"`
-	AuthorId  string    `json:"authorId"`
-	Text      string    `json:"text"`
-	CreatedAt time.Time `json:"createdAt"`
+	Id             string    `json:"id"`
+	AuthorId       string    `json:"authorId"`
+	Text           string    `json:"text"`
+	CreatedAt      time.Time `json:"createdAt"`
 	LastModifiedAt time.Time `json:"lastModifiedAt"`
 }
 
