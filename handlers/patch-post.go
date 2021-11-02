@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
+	"miniblog/storage"
 	"net/http"
 	"path"
 )
@@ -28,6 +30,16 @@ func (h *HTTPHandler) HandlePatchPost(w http.ResponseWriter, r *http.Request) {
 
 	post, err := h.Storage.PatchPost(r.Context(), postId, userId, data.Text)
 	if err != nil {
+		if errors.As(err, &storage.Forbidden) {
+			http.Error(w, err.Error(), http.StatusForbidden) // TODO
+			//http.Error(w, "Post is owned by another user.", http.StatusForbidden)
+			return
+		}
+		if errors.As(err, &storage.ClientError) {
+			log.Printf("Client error while getting posts for author: %s", err.Error())
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
 		log.Printf("Failed to add post: %s", err.Error())
 		http.Error(w, INTERNAL_ERROR_MESSAGE, http.StatusInternalServerError)
 		return

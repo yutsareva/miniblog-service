@@ -45,14 +45,17 @@ func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId stri
 	mongoResult := s.posts.FindOneAndUpdate(ctx, filter, update, &opt)
 	err = mongoResult.Err()
 	if err != nil {
-		err = s.posts.FindOne(ctx, bson.M{"_id": postMongoId}).Decode(&result)
-		if err != nil {
-			return nil, fmt.Errorf("post %s is owned by another user: %w", postId, storage.Forbidden)
-		}
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, fmt.Errorf("no document with id %v: %w", postId, storage.NotFoundError)
+			err = s.posts.FindOne(ctx, bson.M{"_id": postMongoId}).Decode(&result)
+			if err == nil {
+				return nil, fmt.Errorf("post %s is owned by another user: %s %w", postId, result.AuthorId, storage.Forbidden)
+			}
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				return nil, fmt.Errorf("no document with id %v: %w", postId, storage.NotFoundError)
+			}
 		}
-		return nil, fmt.Errorf("failed to find post: %w", storage.InternalError)
+
+		return nil, fmt.Errorf("failed to find post: %s %w", err.Error(), storage.InternalError)
 	}
 
 	mongoResult.Decode(&result)
@@ -139,7 +142,7 @@ func (s *MongoStorage) GetPost(ctx context.Context, postId string) (models.Post,
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, fmt.Errorf("no document with id %v: %w", postId, storage.NotFoundError)
 		}
-		return nil, fmt.Errorf("failed to find post: %w", storage.InternalError)
+		return nil, fmt.Errorf("failed to find post: %s %w", err.Error(), storage.InternalError)
 	}
 	return &result, nil
 }
