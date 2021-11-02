@@ -33,8 +33,8 @@ func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert provided id to Mongo object id %w", storage.ClientError)
 	}
-	filter := bson.M{"_id": postMongoId}
-	update := bson.M{"authorId": userId, "text": text, "lastModifiedAt": time.Now().UTC().Format(time.RFC3339)}
+	filter := bson.M{"_id": postMongoId, "authorId": userId}
+	update := bson.M{"text": text, "lastModifiedAt": time.Now().UTC().Format(time.RFC3339)}
 
 	upsert := false
 	after := options.After
@@ -45,6 +45,10 @@ func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId stri
 	mongoResult := s.posts.FindOneAndUpdate(ctx, filter, update, &opt)
 	err = mongoResult.Err()
 	if err != nil {
+		err = s.posts.FindOne(ctx, bson.M{"_id": postMongoId}).Decode(&result)
+		if err != nil {
+			return nil,fmt.Errorf("post %s is owned by another user: %w", postId, storage.Forbidden)
+		}
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, fmt.Errorf("no document with id %v: %w", postId, storage.NotFoundError)
 		}

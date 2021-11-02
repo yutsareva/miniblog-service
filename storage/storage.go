@@ -11,6 +11,7 @@ var (
 	InternalError = errors.New("storage internal error")
 	ClientError   = errors.New("storage client error")
 	NotFoundError = fmt.Errorf("%w.not_found", ClientError)
+	Forbidden = fmt.Errorf("%w.forbidden", ClientError)
 )
 
 type Storage interface {

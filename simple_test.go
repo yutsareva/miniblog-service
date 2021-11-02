@@ -129,13 +129,14 @@ func (fn RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) 
 
 type post struct {
 	Id        string    `json:"id"`
-	AuthorId  string    `json:"author_id"`
+	AuthorId  string    `json:"authorId"`
 	Text      string    `json:"text"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `json:"createdAt"`
+	LastModifiedAt time.Time `json:"lastModifiedAt"`
 }
 
 func (s *APISuite) TestSimple() {
-	// when:
+	// Create post
 	urlPost := "http://localhost:8080/api/v1/posts"
 	body := strings.NewReader("{\"text\": \"1234\"}")
 	reqPost, _ := http.NewRequest("POST", urlPost, body)
@@ -143,21 +144,42 @@ func (s *APISuite) TestSimple() {
 	reqPost.Header.Set("System-Design-User-Id", "12345")
 	respPost, errPost := s.client.Do(reqPost)
 
-	// then:
 	s.Require().NoError(errPost)
 	s.Require().Equal(http.StatusOK, respPost.StatusCode)
 
 	var p post
 	json.NewDecoder(respPost.Body).Decode(&p)
 
+	// Get created post
 	urlGet := "http://localhost:8080/api/v1/posts/" + p.Id
-	reqGet, _ := http.NewRequest("GET", urlGet, body)
+	reqGet, _ := http.NewRequest("GET", urlGet, strings.NewReader(""))
 	//req.Header.Set("Content-Type", "application/json")
 	reqGet.Header.Set("System-Design-User-Id", "12345")
 	respGet, errGet := s.client.Do(reqGet)
 
-	// then:
 	s.Require().NoError(errGet)
 	s.Require().Equal(http.StatusOK, respGet.StatusCode)
 
+	// Modify post
+	body = strings.NewReader("{\"text\": \"new text\"}")
+	reqPatch, _ := http.NewRequest("PATCH", urlGet, body)
+	reqPatch.Header.Set("Content-Type", "application/json")
+	reqPatch.Header.Set("System-Design-User-Id", "12345")
+	respPatch, errPost := s.client.Do(reqPatch)
+
+	s.Require().NoError(errPost)
+	s.Require().Equal(http.StatusOK, respPatch.StatusCode)
+
+	json.NewDecoder(respPatch.Body).Decode(&p)
+	s.Require().Equal("new text", p.Text)
+
+	reqGet, _ = http.NewRequest("GET", urlGet, strings.NewReader(""))
+	reqGet.Header.Set("System-Design-User-Id", "12345")
+	respGet, errGet = s.client.Do(reqGet)
+
+	s.Require().NoError(errGet)
+	s.Require().Equal(http.StatusOK, respGet.StatusCode)
+
+	json.NewDecoder(respGet.Body).Decode(&p)
+	s.Require().Equal("new text", p.Text)
 }
