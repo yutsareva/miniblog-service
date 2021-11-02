@@ -26,6 +26,10 @@ type MongoStorage struct {
 	posts *mongo.Collection
 }
 
+func (s *MongoStorage) PatchPost(ctx context.Context, id string, userId string, text string) (models.Post, error) {
+	panic("implement me")
+}
+
 func (s *MongoStorage) GetPostsByUserId(
 	ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
 

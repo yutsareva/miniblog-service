@@ -22,6 +22,10 @@ type PersistentStorageWithCache struct {
 	persistentStorage storage.Storage
 }
 
+func (s *PersistentStorageWithCache) PatchPost(ctx context.Context, id string, userId string, text string) (models.Post, error) {
+	return s.persistentStorage.PatchPost(ctx, id, userId, text)
+}
+
 func (s *PersistentStorageWithCache) AddPost(ctx context.Context, userId string, text string) (models.Post, error) {
 	return s.persistentStorage.AddPost(ctx, userId, text)
 }

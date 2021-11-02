@@ -15,12 +15,27 @@ type Post struct {
 	AuthorId  string `json:"authorId"`
 	Text      string `json:"text"`
 	CreatedAt string `json:"createdAt"`
+	LastModifiedAt string `json:"lastModifiedAt"`
 }
 
 type InMemoryStorage struct {
 	mut           sync.RWMutex
 	posts         map[string]Post
 	postIdsByUser map[string][]string
+}
+
+func (s *InMemoryStorage) PatchPost(ctx context.Context, postId string, userId string, text string) (models.Post, error) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	post, found := s.posts[postId]
+	if !found {
+		return nil, fmt.Errorf("post %s not found: %w", postId, storage.NotFoundError)
+	}
+	post.Text = text
+	post.AuthorId = userId
+	post.LastModifiedAt = time.Now().UTC().Format(time.RFC3339)
+	return &post, nil
 }
 
 func (s *InMemoryStorage) GetPostsByUserId(
@@ -92,6 +107,7 @@ func (s *InMemoryStorage) AddPost(ctx context.Context, userId string, text strin
 		AuthorId:  userId,
 		Text:      text,
 		CreatedAt: createdAt,
+		LastModifiedAt: createdAt,
 	}
 	s.posts[p.Id] = p
 	s.postIdsByUser[p.AuthorId] = append(s.postIdsByUser[p.AuthorId], p.Id)

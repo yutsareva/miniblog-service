@@ -64,6 +64,7 @@ func CreateServer() *http.Server {
 	r.HandleFunc("/api/v1/posts", handler.HandleCreatePost).Methods("POST")
 	r.HandleFunc("/api/v1/posts/{postId}", handler.HandleGetPost).Methods("GET")
 	r.HandleFunc("/api/v1/users/{userId}/posts", handler.HandleGetPosts).Methods("GET")
+	r.HandleFunc("/api/v1/posts/{postId}", handler.HandlePatchPost).Methods("PATCH")
 	r.HandleFunc("/maintenance/ping", handler.HealthCheck).Methods("GET")
 
 	return &http.Server{

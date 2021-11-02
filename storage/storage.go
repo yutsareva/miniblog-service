@@ -17,4 +17,5 @@ type Storage interface {
 	AddPost(ctx context.Context, userId string, text string) (models.Post, error)
 	GetPost(ctx context.Context, id string) (models.Post, error)
 	GetPostsByUserId(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error)
+	PatchPost(ctx context.Context, id string, userId string, text string) (models.Post, error)
 }
