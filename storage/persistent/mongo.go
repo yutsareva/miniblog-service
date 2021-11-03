@@ -31,10 +31,15 @@ func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId stri
 	var result Post
 	postMongoId, err := primitive.ObjectIDFromHex(postId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert provided id to Mongo object id %w", storage.ClientError)
+		return nil, fmt.Errorf("failed to convert provided id to Mongo object id %w", storage.NotFoundError)
 	}
 	filter := bson.M{"_id": postMongoId, "authorId": userId}
-	update := bson.M{"text": text, "lastModifiedAt": time.Now().UTC().Format(time.RFC3339)}
+	update := bson.M{
+		"$set": bson.M{
+			"text": text,
+			"lastModifiedAt": time.Now().UTC().Format(time.RFC3339),
+		},
+	}
 
 	upsert := false
 	after := options.After
@@ -55,7 +60,7 @@ func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId stri
 			}
 		}
 
-		return nil, fmt.Errorf("failed to find post: %s %w", err.Error(), storage.InternalError)
+		return nil, fmt.Errorf("failed to find post: %s %s %s %w", err.Error(), postMongoId, userId, storage.InternalError)
 	}
 
 	mongoResult.Decode(&result)
@@ -135,7 +140,7 @@ func (s *MongoStorage) GetPost(ctx context.Context, postId string) (models.Post,
 	var result Post
 	postMongoId, err := primitive.ObjectIDFromHex(postId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert provided id to Mongo object id %w", storage.ClientError)
+		return nil, fmt.Errorf("failed to convert provided id to Mongo object id %w", storage.NotFoundError)
 	}
 	err = s.posts.FindOne(ctx, bson.M{"_id": postMongoId}).Decode(&result)
 	if err != nil {

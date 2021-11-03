@@ -18,6 +18,7 @@ func (h *HTTPHandler) HandlePatchPost(w http.ResponseWriter, r *http.Request) {
 	var data CreatePostRequestData
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
+		log.Printf("Failed to decode post data while updating post: %s", err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -30,17 +31,22 @@ func (h *HTTPHandler) HandlePatchPost(w http.ResponseWriter, r *http.Request) {
 
 	post, err := h.Storage.PatchPost(r.Context(), postId, userId, data.Text)
 	if err != nil {
-		if errors.As(err, &storage.Forbidden) {
-			http.Error(w, err.Error(), http.StatusForbidden) // TODO
-			//http.Error(w, "Post is owned by another user.", http.StatusForbidden)
+		if errors.Is(err, storage.Forbidden) {
+			log.Printf("Forbidden error while updating post: %s", err.Error())
+			http.Error(w, "Post is owned by another user.", http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, storage.NotFoundError) {
+			log.Printf("Not Found error while updating post: %s", err.Error())
+			http.Error(w, "Post is owned by another user.", http.StatusForbidden)
 			return
 		}
 		if errors.As(err, &storage.ClientError) {
-			log.Printf("Client error while getting posts for author: %s", err.Error())
+			log.Printf("Client error while updating post: %s", err.Error())
 			http.Error(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		log.Printf("Failed to add post: %s", err.Error())
+		log.Printf("Internal error while updating post: %s", err.Error())
 		http.Error(w, INTERNAL_ERROR_MESSAGE, http.StatusInternalServerError)
 		return
 	}
