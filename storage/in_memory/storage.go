@@ -18,6 +18,10 @@ type Post struct {
 	LastModifiedAt string `json:"lastModifiedAt"`
 }
 
+func (p *Post) GetId() string {
+	return p.Id
+}
+
 type InMemoryStorage struct {
 	mut           sync.RWMutex
 	posts         map[string]Post

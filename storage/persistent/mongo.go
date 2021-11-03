@@ -23,6 +23,10 @@ type Post struct {
 	LastModifiedAt string             `bson:"lastModifiedAt,omitempty" json:"lastModifiedAt,omitempty"`
 }
 
+func (p *Post) GetId() string {
+	return p.Id.Hex()
+}
+
 type MongoStorage struct {
 	posts *mongo.Collection
 }
