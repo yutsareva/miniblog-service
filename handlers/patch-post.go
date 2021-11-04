@@ -38,7 +38,7 @@ func (h *HTTPHandler) HandlePatchPost(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, storage.NotFoundError) {
 			log.Printf("Not Found error while updating post: %s", err.Error())
-			http.Error(w, "Post is owned by another user.", http.StatusForbidden)
+			http.Error(w, "Post not found.", http.StatusNotFound)
 			return
 		}
 		if errors.As(err, &storage.ClientError) {
