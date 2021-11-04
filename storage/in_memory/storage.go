@@ -33,11 +33,11 @@ func (s *InMemoryStorage) PatchPost(ctx context.Context, postId string, userId s
 	defer s.mut.Unlock()
 
 	post, found := s.posts[postId]
-	if post.AuthorId != userId {
-		return nil, fmt.Errorf("post %s is owned by another user: %w", postId, storage.Forbidden)
-	}
 	if !found {
 		return nil, fmt.Errorf("post %s not found: %w", postId, storage.NotFoundError)
+	}
+	if post.AuthorId != userId {
+		return nil, fmt.Errorf("post %s is owned by another user: %w", postId, storage.Forbidden)
 	}
 	post.Text = text
 	post.AuthorId = userId

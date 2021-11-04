@@ -40,7 +40,7 @@ func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId stri
 	filter := bson.M{"_id": postMongoId, "authorId": userId}
 	update := bson.M{
 		"$set": bson.M{
-			"text": text,
+			"text":           text,
 			"lastModifiedAt": time.Now().UTC().Format(time.RFC3339),
 		},
 	}
