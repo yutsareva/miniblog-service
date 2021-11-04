@@ -16,7 +16,7 @@ func saveToCache(ctx context.Context, client *redis.Client, post models.Post) {
 	if err == nil {
 		err = client.Set(ctx, post.GetId(), j, time.Hour).Err()
 		if err != nil {
-			fmt.Println("Failed to save post to redis: ", err)
+			fmt.Println("Failed to save post to redis:", err)
 		}
 	}
 }
@@ -27,17 +27,18 @@ func getFromCache(ctx context.Context, client *redis.Client, postId string) (mod
 		var p persistent.Post
 		err = json.Unmarshal([]byte(val), &p)
 		if err == nil {
+			fmt.Println("Got post from redis!")
 			return &p, nil
 		}
 	}
-	fmt.Println("Failed to get post from redis: ", err)
+	fmt.Println("Failed to get post from redis:", err)
 	return nil, err
 }
 
 func removeFromCache(ctx context.Context, client *redis.Client, postId string) {
 	err := client.Del(ctx, postId).Err()
 	if err != nil {
-		fmt.Println("Failed to remove post from redis: ", err.Error())
+		fmt.Println("Failed to remove post from redis:", err.Error())
 	}
 }
 
