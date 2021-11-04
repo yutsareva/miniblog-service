@@ -23,7 +23,7 @@ func saveToCache(ctx context.Context, client *redis.Client, post models.Post) {
 
 func getFromCache(ctx context.Context, client *redis.Client, postId string) (models.Post, error) {
 	val, err := client.Get(ctx, postId).Result()
-	if err != nil {
+	if err == nil {
 		var p persistent.Post
 		err = json.Unmarshal([]byte(val), &p)
 		if err == nil {
