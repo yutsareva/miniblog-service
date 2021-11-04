@@ -66,7 +66,7 @@ func (s *PersistentStorageWithCache) PatchPost(ctx context.Context, id string, u
 
 func (s *PersistentStorageWithCache) AddPost(ctx context.Context, userId string, text string) (models.Post, error) {
 	post, err := s.persistentStorage.AddPost(ctx, userId, text)
-	if err != nil {
+	if err == nil {
 		saveToCache(ctx, s.client, post)
 	}
 	return post, err
