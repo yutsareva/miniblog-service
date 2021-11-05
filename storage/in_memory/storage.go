@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"log"
 	"miniblog/storage"
 	"miniblog/storage/models"
 	"sync"
@@ -20,6 +21,15 @@ type Post struct {
 
 func (p *Post) GetId() string {
 	return p.Id
+}
+
+func (p *Post) GetLastModifiedAt() int64 {
+	t, err := time.Parse(time.RFC3339, p.LastModifiedAt)
+	if err != nil {
+		log.Printf("Failed to parse time")
+		return 0
+	}
+	return t.UnixNano() / int64(time.Millisecond)
 }
 
 type InMemoryStorage struct {

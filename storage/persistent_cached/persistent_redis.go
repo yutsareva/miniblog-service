@@ -8,17 +8,47 @@ import (
 	"miniblog/storage"
 	"miniblog/storage/models"
 	"miniblog/storage/persistent"
-	"time"
+	"strconv"
 )
 
-func saveToCache(ctx context.Context, client *redis.Client, post models.Post) {
+// TODO: current implementation depends on time synchronization on different replicas
+
+// KEYS[1] - key
+// KEYS[2] - version
+// KEYS[3] - value
+var UPDATE_SCRIPT_STR = `
+	local old_version = redis.call("hget", KEYS[1], "version")
+	if (old_version == false) then
+	  redis.call("hset", KEYS[1], "value", KEYS[3])
+	  redis.call("hset", KEYS[1], "version", KEYS[2])
+	  return 1
+    end
+    if (tonumber(old_version) < tonumber(KEYS[2])) then
+	  redis.call("hset", KEYS[1], "value", KEYS[3])
+	  redis.call("hset", KEYS[1], "version", KEYS[2])
+	  return 1
+    end
+    return 0
+`
+var UPDATE_SCRIPT = redis.NewScript(UPDATE_SCRIPT_STR)
+
+func updateCache(ctx context.Context, client *redis.Client, post models.Post) {
 	j, err := json.Marshal(post)
-	if err == nil {
-		err = client.Set(ctx, post.GetId(), j, time.Hour).Err()
-		if err != nil {
-			fmt.Println("Failed to save post to redis:", err)
-		}
+	if err != nil {
+		fmt.Println("Failed to dump to json:", err)
+		return
 	}
+	_, err = UPDATE_SCRIPT.Run(
+		ctx,
+		client,
+		[]string{post.GetId(), strconv.FormatInt(post.GetLastModifiedAt(), 10), string(j)},
+		[]interface{}{},
+	).Result()
+	if err != nil {
+		fmt.Println("Failed to update redis cache:", err)
+		return
+	}
+	//fmt.Println("Cache update returned: ", updated)
 }
 
 func getFromCache(ctx context.Context, client *redis.Client, postId string) (models.Post, error) {
@@ -27,19 +57,12 @@ func getFromCache(ctx context.Context, client *redis.Client, postId string) (mod
 		var p persistent.Post
 		err = json.Unmarshal([]byte(val), &p)
 		if err == nil {
-			fmt.Println("Got post from redis!")
+			//fmt.Println("Got post from redis!")
 			return &p, nil
 		}
 	}
-	fmt.Println("Failed to get post from redis:", err)
+	//fmt.Println("Failed to get post from redis:", err)
 	return nil, err
-}
-
-func removeFromCache(ctx context.Context, client *redis.Client, postId string) {
-	err := client.Del(ctx, postId).Err()
-	if err != nil {
-		fmt.Println("Failed to remove post from redis:", err.Error())
-	}
 }
 
 func CreatePersistentStorageCachedWithRedis(persistentStorage storage.Storage, redisUrl string) storage.Storage {
@@ -60,7 +83,7 @@ type PersistentStorageWithCache struct {
 func (s *PersistentStorageWithCache) PatchPost(ctx context.Context, id string, userId string, text string) (models.Post, error) {
 	post, err := s.persistentStorage.PatchPost(ctx, id, userId, text)
 	if err == nil {
-		removeFromCache(ctx, s.client, post.GetId())
+		updateCache(ctx, s.client, post)
 	}
 	return post, err
 }
@@ -68,7 +91,7 @@ func (s *PersistentStorageWithCache) PatchPost(ctx context.Context, id string, u
 func (s *PersistentStorageWithCache) AddPost(ctx context.Context, userId string, text string) (models.Post, error) {
 	post, err := s.persistentStorage.AddPost(ctx, userId, text)
 	if err == nil {
-		saveToCache(ctx, s.client, post)
+		updateCache(ctx, s.client, post)
 	}
 	return post, err
 }
@@ -80,7 +103,7 @@ func (s *PersistentStorageWithCache) GetPost(ctx context.Context, postId string)
 	}
 	post, err := s.persistentStorage.GetPost(ctx, postId)
 	if err == nil {
-		saveToCache(ctx, s.client, post)
+		updateCache(ctx, s.client, post)
 	}
 	return post, err
 }
