@@ -12,6 +12,7 @@ import (
 )
 
 // TODO: retry on redis fails
+// TODO: fix version counter overflow
 
 // KEYS[1] - key
 // KEYS[2] - version
