@@ -22,9 +22,10 @@ Environment variables:
 - `SERVER_PORT` --- port number to run server on
 - `STORAGE_MODE` --- storage mode, one of:
     - `inmemory` --- store data in memory
-    - `mongo` --- store data in MongoDB. To use this mode, additional env vars must be specified: `MONGO_URL`, `MONGO_DBNAME`
-    - `cached` --- store data in MongoDB with cache in Redis. To use this mode, additional env vars must be specified: `MONGO_URL`, `MONGO_DBNAME`, `REDIS_URL`
-      Адреса MongoDB и Redis передается в отдельной переменной окружения (см. ниже)
+    - `mongo` --- store data in MongoDB. To use this mode, additional env vars must be specified:
+      `MONGO_URL`, `MONGO_DBNAME`
+    - `cached` --- store data in MongoDB with cache in Redis. To use this mode, additional env vars must be specified:
+      `MONGO_URL`, `MONGO_DBNAME`, `REDIS_URL`
 - `MONGO_URL` --- address to connect to MongoDB
 - `MONGO_DBNAME` --- MongoDB database name
 - `REDIS_URL` --- address to connect to Redis

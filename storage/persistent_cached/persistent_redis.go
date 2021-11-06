@@ -80,7 +80,12 @@ type PersistentStorageWithCache struct {
 	persistentStorage storage.Storage
 }
 
-func (s *PersistentStorageWithCache) PatchPost(ctx context.Context, id string, userId string, text string) (models.Post, error) {
+func (s *PersistentStorageWithCache) PatchPost(
+	ctx context.Context,
+	id string,
+	userId string,
+	text string,
+) (models.Post, error) {
 	post, err := s.persistentStorage.PatchPost(ctx, id, userId, text)
 	if err == nil {
 		updateCache(ctx, s.client, post)
@@ -88,7 +93,11 @@ func (s *PersistentStorageWithCache) PatchPost(ctx context.Context, id string, u
 	return post, err
 }
 
-func (s *PersistentStorageWithCache) AddPost(ctx context.Context, userId string, text string) (models.Post, error) {
+func (s *PersistentStorageWithCache) AddPost(
+	ctx context.Context,
+	userId string,
+	text string,
+) (models.Post, error) {
 	post, err := s.persistentStorage.AddPost(ctx, userId, text)
 	if err == nil {
 		updateCache(ctx, s.client, post)
@@ -108,6 +117,11 @@ func (s *PersistentStorageWithCache) GetPost(ctx context.Context, postId string)
 	return post, err
 }
 
-func (s *PersistentStorageWithCache) GetPostsByUserId(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
+func (s *PersistentStorageWithCache) GetPostsByUserId(
+	ctx context.Context,
+	userId *string,
+	page *string,
+	size int,
+) ([]models.Post, *string, error) {
 	return s.persistentStorage.GetPostsByUserId(ctx, userId, page, size)
 }

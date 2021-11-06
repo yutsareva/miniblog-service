@@ -32,7 +32,12 @@ type InMemoryStorage struct {
 	postIdsByUser map[string][]string
 }
 
-func (s *InMemoryStorage) PatchPost(ctx context.Context, postId string, userId string, text string) (models.Post, error) {
+func (s *InMemoryStorage) PatchPost(
+	ctx context.Context,
+	postId string,
+	userId string,
+	text string,
+) (models.Post, error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -108,7 +113,7 @@ func (s *InMemoryStorage) GetPostsByUserId(
 
 }
 
-func (s *InMemoryStorage) AddPost(ctx context.Context, userId string, text string) (models.Post, error) {
+func (s *InMemoryStorage) AddPost(ctx context.Context, userId, text string) (models.Post, error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
