@@ -11,7 +11,7 @@ import (
 	"strconv"
 )
 
-// TODO: current implementation depends on time synchronization on different replicas
+// TODO: retry on redis fails
 
 // KEYS[1] - key
 // KEYS[2] - version
@@ -41,7 +41,7 @@ func updateCache(ctx context.Context, client *redis.Client, post models.Post) {
 	_, err = UPDATE_SCRIPT.Run(
 		ctx,
 		client,
-		[]string{post.GetId(), strconv.FormatInt(post.GetLastModifiedAt(), 10), string(j)},
+		[]string{post.GetId(), strconv.FormatInt(post.GetVersion(), 10), string(j)},
 		[]interface{}{},
 	).Result()
 	if err != nil {
@@ -52,7 +52,7 @@ func updateCache(ctx context.Context, client *redis.Client, post models.Post) {
 }
 
 func getFromCache(ctx context.Context, client *redis.Client, postId string) (models.Post, error) {
-	val, err := client.Get(ctx, postId).Result()
+	val, err := client.HGet(ctx, postId, "value").Result()
 	if err == nil {
 		var p persistent.Post
 		err = json.Unmarshal([]byte(val), &p)

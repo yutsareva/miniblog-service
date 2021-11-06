@@ -21,19 +21,15 @@ type Post struct {
 	Text           string             `bson:"text,omitempty" json:"text,omitempty"`
 	CreatedAt      string             `bson:"createdAt,omitempty" json:"createdAt,omitempty"`
 	LastModifiedAt string             `bson:"lastModifiedAt,omitempty" json:"lastModifiedAt,omitempty"`
+	Version int64 `bson:"version,omitempty"`
 }
 
 func (p *Post) GetId() string {
 	return p.Id.Hex()
 }
 
-func (p *Post) GetLastModifiedAt() int64 {
-	t, err := time.Parse(time.RFC3339, p.LastModifiedAt)
-	if err != nil {
-		log.Printf("Failed to parse time")
-		return 0
-	}
-	return t.UnixNano() / int64(time.Millisecond)
+func (p *Post) GetVersion() int64 {
+	return p.Version
 }
 
 type MongoStorage struct {
@@ -51,6 +47,9 @@ func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId stri
 		"$set": bson.M{
 			"text":           text,
 			"lastModifiedAt": time.Now().UTC().Format(time.RFC3339),
+		},
+		"$inc": bson.M{
+			"version": 1,
 		},
 	}
 
@@ -140,6 +139,7 @@ func (s *MongoStorage) AddPost(ctx context.Context, userId string, text string) 
 		AuthorId:       userId,
 		CreatedAt:      now,
 		LastModifiedAt: now,
+		Version: 0,
 	}
 	id, err := s.posts.InsertOne(ctx, post)
 	if err != nil {
