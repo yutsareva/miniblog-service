@@ -3,8 +3,8 @@ package persistent_cached
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/go-redis/redis/v8"
+	"log"
 	"miniblog/storage"
 	"miniblog/storage/models"
 	"miniblog/storage/persistent"
@@ -35,7 +35,7 @@ var UPDATE_SCRIPT = redis.NewScript(UPDATE_SCRIPT_STR)
 func updateCache(ctx context.Context, client *redis.Client, post models.Post) {
 	j, err := json.Marshal(post)
 	if err != nil {
-		fmt.Println("Failed to dump to json:", err)
+		log.Printf("Failed to dump to json:", err)
 		return
 	}
 	_, err = UPDATE_SCRIPT.Run(
@@ -45,10 +45,10 @@ func updateCache(ctx context.Context, client *redis.Client, post models.Post) {
 		[]interface{}{},
 	).Result()
 	if err != nil {
-		fmt.Println("Failed to update redis cache:", err)
+		log.Printf("Failed to update redis cache:", err)
 		return
 	}
-	//fmt.Println("Cache update returned: ", updated)
+	//log.Printf("Cache update returned: ", updated)
 }
 
 func getFromCache(ctx context.Context, client *redis.Client, postId string) (models.Post, error) {
@@ -57,11 +57,11 @@ func getFromCache(ctx context.Context, client *redis.Client, postId string) (mod
 		var p persistent.Post
 		err = json.Unmarshal([]byte(val), &p)
 		if err == nil {
-			//fmt.Println("Got post from redis!")
+			//log.Printf("Got post from redis!")
 			return &p, nil
 		}
 	}
-	//fmt.Println("Failed to get post from redis:", err)
+	//log.Printf("Failed to get post from redis:", err)
 	return nil, err
 }
 

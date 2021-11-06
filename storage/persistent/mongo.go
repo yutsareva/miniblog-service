@@ -90,7 +90,6 @@ func (s *MongoStorage) GetPostsByUserId(
 	if page == nil {
 		page = &minPage
 	}
-	log.Printf("page: %s", *page)
 	pageMongoId, err := primitive.ObjectIDFromHex(*page)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to convert provided page to Mongo object id: %s, %w", err.Error(), storage.ClientError)
