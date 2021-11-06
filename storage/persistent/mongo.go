@@ -21,7 +21,7 @@ type Post struct {
 	Text           string             `bson:"text,omitempty" json:"text,omitempty"`
 	CreatedAt      string             `bson:"createdAt,omitempty" json:"createdAt,omitempty"`
 	LastModifiedAt string             `bson:"lastModifiedAt,omitempty" json:"lastModifiedAt,omitempty"`
-	Version int64 `bson:"version,omitempty"`
+	Version        int64              `bson:"version,omitempty"`
 }
 
 func (p *Post) GetId() string {
@@ -139,7 +139,7 @@ func (s *MongoStorage) AddPost(ctx context.Context, userId string, text string) 
 		AuthorId:       userId,
 		CreatedAt:      now,
 		LastModifiedAt: now,
-		Version: 0,
+		Version:        0,
 	}
 	id, err := s.posts.InsertOne(ctx, post)
 	if err != nil {
