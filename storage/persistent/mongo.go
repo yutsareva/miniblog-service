@@ -36,6 +36,22 @@ type MongoStorage struct {
 	posts *mongo.Collection
 }
 
+func (s *MongoStorage) Subscribe(ctx context.Context, userId string, subscriber string) error {
+	panic("implement me")
+}
+
+func (s *MongoStorage) GetSubscriptions(ctx context.Context, userId string) ([]string, error) {
+	panic("implement me")
+}
+
+func (s *MongoStorage) GetSubscribers(ctx context.Context, userId string) ([]string, error) {
+	panic("implement me")
+}
+
+func (s *MongoStorage) Feed(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
+	panic("implement me")
+}
+
 func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId string, text string) (models.Post, error) {
 	var result Post
 	postMongoId, err := primitive.ObjectIDFromHex(postId)

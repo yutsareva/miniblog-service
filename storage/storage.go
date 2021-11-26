@@ -19,4 +19,8 @@ type Storage interface {
 	GetPost(ctx context.Context, id string) (models.Post, error)
 	GetPostsByUserId(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error)
 	PatchPost(ctx context.Context, id string, userId string, text string) (models.Post, error)
+	Subscribe(ctx context.Context, userId string, subscriber string) error
+	GetSubscriptions(ctx context.Context, userId string) ([]string, error)
+	GetSubscribers(ctx context.Context, userId string) ([]string, error)
+	Feed(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error)
 }

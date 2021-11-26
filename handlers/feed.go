@@ -7,18 +7,17 @@ import (
 	"miniblog/storage"
 	"miniblog/storage/models"
 	"net/http"
-	"path"
 	"strconv"
 )
 
 
-type PostByUserIdResponse struct {
+type FeedResponse struct {
 	Posts    []models.Post `json:"posts,omitempty"`
 	NextPage *string       `json:"nextPage,omitempty"`
 }
 
-func (h *HTTPHandler) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
-	userId := path.Base(path.Dir(r.URL.Path))
+func (h *HTTPHandler) HandleFeed(w http.ResponseWriter, r *http.Request) {
+	userId := r.Header.Get("System-Design-User-Id")
 
 	cgiPage, found := r.URL.Query()["page"]
 	var page *string = nil
@@ -37,7 +36,7 @@ func (h *HTTPHandler) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	posts, nextPage, err := h.Storage.GetPostsByUserId(r.Context(), &userId, page, size)
+	posts, nextPage, err := h.Storage.Feed(r.Context(), &userId, page, size)
 	if err != nil {
 		if errors.As(err, &storage.ClientError) {
 			log.Printf("Client error while getting posts for author: %s", err.Error())

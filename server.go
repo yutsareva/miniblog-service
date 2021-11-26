@@ -61,11 +61,15 @@ func CreateServer() *http.Server {
 	}
 	handler := &handlers.HTTPHandler{Storage: storage}
 
+	r.HandleFunc("/maintenance/ping", handler.HealthCheck).Methods("GET")
 	r.HandleFunc("/api/v1/posts", handler.HandleCreatePost).Methods("POST")
 	r.HandleFunc("/api/v1/posts/{postId}", handler.HandleGetPost).Methods("GET")
 	r.HandleFunc("/api/v1/users/{userId}/posts", handler.HandleGetPosts).Methods("GET")
 	r.HandleFunc("/api/v1/posts/{postId}", handler.HandlePatchPost).Methods("PATCH")
-	r.HandleFunc("/maintenance/ping", handler.HealthCheck).Methods("GET")
+	r.HandleFunc("/api/v1/users/{userId}/subscribe", handler.HandleSubscribe).Methods("POST")
+	r.HandleFunc("/api/v1/subscriptions", handler.HandleGetSubscriptions).Methods("GET")
+	r.HandleFunc("/api/v1/subscribers", handler.HandleGetSubscribers).Methods("GET")
+	r.HandleFunc("/api/v1/feed", handler.HandleFeed).Methods("GET")
 
 	return &http.Server{
 		Handler:      r,

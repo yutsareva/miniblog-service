@@ -81,6 +81,22 @@ type PersistentStorageWithCache struct {
 	persistentStorage storage.Storage
 }
 
+func (s *PersistentStorageWithCache) Subscribe(ctx context.Context, userId string, subscriber string) error {
+	panic("implement me")
+}
+
+func (s *PersistentStorageWithCache) GetSubscriptions(ctx context.Context, userId string) ([]string, error) {
+	panic("implement me")
+}
+
+func (s *PersistentStorageWithCache) GetSubscribers(ctx context.Context, userId string) ([]string, error) {
+	panic("implement me")
+}
+
+func (s *PersistentStorageWithCache) Feed(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
+	panic("implement me")
+}
+
 func (s *PersistentStorageWithCache) PatchPost(
 	ctx context.Context,
 	id string,

@@ -32,6 +32,22 @@ type InMemoryStorage struct {
 	postIdsByUser map[string][]string
 }
 
+func (s *InMemoryStorage) GetSubscriptions(ctx context.Context, userId string) ([]string, error) {
+	panic("implement me")
+}
+
+func (s *InMemoryStorage) GetSubscribers(ctx context.Context, userId string) ([]string, error) {
+	panic("implement me")
+}
+
+func (s *InMemoryStorage) Feed(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
+	panic("implement me")
+}
+
+func (s *InMemoryStorage) Subscribe(ctx context.Context, userId string, subscriber string) error {
+	panic("implement me")
+}
+
 func (s *InMemoryStorage) PatchPost(
 	ctx context.Context,
 	postId string,
