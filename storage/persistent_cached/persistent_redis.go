@@ -3,12 +3,16 @@ package persistent_cached
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/RichardKnop/machinery/v1"
+	"github.com/RichardKnop/machinery/v1/tasks"
 	"github.com/go-redis/redis/v8"
 	"log"
 	"miniblog/storage"
 	"miniblog/storage/models"
 	"miniblog/storage/persistent"
 	"strconv"
+	"time"
 )
 
 // TODO: retry on redis fails
@@ -70,19 +74,42 @@ func CreatePersistentStorageCachedWithRedis(persistentStorage storage.Storage, r
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: redisUrl,
 	})
+
+	broker, err := startBroker(redisUrl)
+	if err != nil {
+		panic("Failed to start broker: " + err.Error())
+	}
+
 	return &PersistentStorageWithCache{
 		client:            redisClient,
 		persistentStorage: persistentStorage,
+		broker:			   broker,
 	}
 }
 
 type PersistentStorageWithCache struct {
 	client            *redis.Client
 	persistentStorage storage.Storage
+	broker            *machinery.Server
 }
 
 func (s *PersistentStorageWithCache) Subscribe(ctx context.Context, userId string, subscriber string) error {
-	panic("implement me")
+	err := s.persistentStorage.Subscribe(ctx, userId, subscriber)
+	if err != nil {
+		return err
+	}
+	task := createAddSubscriptionTask(userId, subscriber)
+	asyncResult, err := s.broker.SendTaskWithContext(context.Background(), &task)
+	if err != nil {
+		return fmt.Errorf("could not send task: %s", err.Error())
+	}
+
+	results, err := asyncResult.Get(time.Duration(1 * time.Second))
+	if err != nil {
+		return fmt.Errorf("getting task result failed with error: %s", err.Error())
+	}
+	log.Printf("%v\n", tasks.HumanReadableResults(results))
+	return nil
 }
 
 func (s *PersistentStorageWithCache) GetSubscriptions(ctx context.Context, userId string) ([]string, error) {

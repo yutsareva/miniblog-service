@@ -13,10 +13,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/RichardKnop/machinery/v1"
-	"github.com/RichardKnop/machinery/v1/config"
-	"github.com/RichardKnop/machinery/v1/log"
-	"github.com/RichardKnop/machinery/v1/tasks"
 )
 
 type StorageMode string
@@ -70,6 +66,7 @@ func CreateServer() *http.Server {
 			panic("Invalid 'STORAGE_MODE'")
 		}
 	}
+
 	handler := &handlers.HTTPHandler{Storage: storage}
 
 	r.HandleFunc("/maintenance/ping", handler.HealthCheck).Methods("GET")
@@ -90,56 +87,6 @@ func CreateServer() *http.Server {
 	}
 }
 
-func startBroker() (*machinery.Server, error) {
-	cnf := &config.Config{
-		DefaultQueue:    "machinery_tasks",
-		ResultsExpireIn: 3600,
-		Broker:          "redis://localhost:6379",
-		ResultBackend:   "redis://localhost:6379",
-		Redis: &config.RedisConfig{
-			MaxIdle:                3,
-			IdleTimeout:            240,
-			ReadTimeout:            15,
-			WriteTimeout:           15,
-			ConnectTimeout:         15,
-			NormalTasksPollPeriod:  1000,
-			DelayedTasksPollPeriod: 500,
-		},
-	}
-
-	server, err := machinery.NewServer(cnf)
-	if err != nil {
-		return nil, err
-	}
-
-	// Register tasks
-	tasks := map[string]interface{}{
-		"updateFeed": updateFeed,
-	}
-
-	return server, server.RegisterTasks(tasks)
-}
-
-func CreateWorker() error {
-	consumerTag := "machinery_worker"
-
-	broker, err := startBroker()
-	if err != nil {
-		return err
-	}
-
-	worker := broker.NewWorker(consumerTag, 0)
-
-	errorhandler := func(err error) {
-		log.Printf("Something went wrong: %s", err)
-	}
-
-	worker.SetErrorHandler(errorhandler)
-
-	return worker.Launch()
-}
-
-
 func main() {
 	appMode, found := os.LookupEnv("APP_MODE")
 	if !found {
@@ -151,8 +98,13 @@ func main() {
 		log.Printf("Start serving on %s", srv.Addr)
 		log.Fatal(srv.ListenAndServe())
 	case WorkerMode:
-		wrk := CreateWorker()
-
+		redisUrl, found := os.LookupEnv("REDIS_URL")
+		if !found {
+			panic("'REDIS_URL' was not specified for 'cached' STORAGE_MODE")
+		}
+		if err := persistent_cached.CreateWorker(redisUrl); err != nil {
+			panic("Failed to start worker: " + err.Error())
+		}
 	default:
 		panic("Invalid 'APP_MODE'")
 	}

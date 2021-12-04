@@ -24,6 +24,12 @@ type Post struct {
 	Version        int64              `bson:"version,omitempty"`
 }
 
+type Subscription struct {
+	Id             primitive.ObjectID `bson:"_id,omitempty"`
+	userId       string             `bson:"authorId,omitempty"`
+	SubscriptionId           string             `bson:"text,omitempty"`
+}
+
 func (p *Post) GetId() string {
 	return p.Id.Hex()
 }
@@ -33,11 +39,22 @@ func (p *Post) GetVersion() int64 {
 }
 
 type MongoStorage struct {
-	posts *mongo.Collection
+	posts       *mongo.Collection
+	subscriptions *mongo.Collection
+	feed        *mongo.Collection
 }
 
 func (s *MongoStorage) Subscribe(ctx context.Context, userId string, subscriber string) error {
-	panic("implement me")
+	subscription := Subscription{
+		userId:       userId,
+		SubscriptionId:           subscriber,
+	}
+	id, err := s.subscriptions.InsertOne(ctx, subscription)
+	if err != nil {
+		return fmt.Errorf("failed to insert subscription: %w", storage.InternalError)
+	}
+	log.Printf("Created subscription with id %s: %s -> %s", id, userId, subscriber)
+	return nil
 }
 
 func (s *MongoStorage) GetSubscriptions(ctx context.Context, userId string) ([]string, error) {
