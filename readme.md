@@ -29,3 +29,8 @@ Environment variables:
 - `MONGO_URL` --- address to connect to MongoDB
 - `MONGO_DBNAME` --- MongoDB database name
 - `REDIS_URL` --- address to connect to Redis
+- `APP_MODE` -- application mode. Possible values:
+    - `SERVER` - server mode, accepts requests
+    - `WORKER` - valid only for `STORAGE_MODE = mongo` configuration.
+       Is used to update users' feeds in background using Redis broker.
+

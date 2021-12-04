@@ -3,6 +3,7 @@ module miniblog
 go 1.16
 
 require (
+	github.com/RichardKnop/machinery v1.10.6
 	github.com/getkin/kin-openapi v0.75.0
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/google/uuid v1.3.0

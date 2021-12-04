@@ -12,14 +12,24 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/RichardKnop/machinery/v1"
+	"github.com/RichardKnop/machinery/v1/config"
+	"github.com/RichardKnop/machinery/v1/log"
+	"github.com/RichardKnop/machinery/v1/tasks"
 )
 
 type StorageMode string
-
 const (
 	InMemory       StorageMode = "inmemory"
 	Mongo                      = "mongo"
 	MongoWithCache             = "cached"
+)
+
+type AppMode string
+const (
+	ServerMode       AppMode = "server"
+	WorkerMode               = "worker"
 )
 
 func CreateServer() *http.Server {
@@ -55,6 +65,7 @@ func CreateServer() *http.Server {
 			}
 			persistentStorage := persistent.CreateMongoStorage(mongoUrl, mongoDbName)
 			storage = persistent_cached.CreatePersistentStorageCachedWithRedis(persistentStorage, redisUrl)
+
 		} else {
 			panic("Invalid 'STORAGE_MODE'")
 		}
@@ -79,8 +90,70 @@ func CreateServer() *http.Server {
 	}
 }
 
+func startBroker() (*machinery.Server, error) {
+	cnf := &config.Config{
+		DefaultQueue:    "machinery_tasks",
+		ResultsExpireIn: 3600,
+		Broker:          "redis://localhost:6379",
+		ResultBackend:   "redis://localhost:6379",
+		Redis: &config.RedisConfig{
+			MaxIdle:                3,
+			IdleTimeout:            240,
+			ReadTimeout:            15,
+			WriteTimeout:           15,
+			ConnectTimeout:         15,
+			NormalTasksPollPeriod:  1000,
+			DelayedTasksPollPeriod: 500,
+		},
+	}
+
+	server, err := machinery.NewServer(cnf)
+	if err != nil {
+		return nil, err
+	}
+
+	// Register tasks
+	tasks := map[string]interface{}{
+		"updateFeed": updateFeed,
+	}
+
+	return server, server.RegisterTasks(tasks)
+}
+
+func CreateWorker() error {
+	consumerTag := "machinery_worker"
+
+	broker, err := startBroker()
+	if err != nil {
+		return err
+	}
+
+	worker := broker.NewWorker(consumerTag, 0)
+
+	errorhandler := func(err error) {
+		log.Printf("Something went wrong: %s", err)
+	}
+
+	worker.SetErrorHandler(errorhandler)
+
+	return worker.Launch()
+}
+
+
 func main() {
-	srv := CreateServer()
-	log.Printf("Start serving on %s", srv.Addr)
-	log.Fatal(srv.ListenAndServe())
+	appMode, found := os.LookupEnv("APP_MODE")
+	if !found {
+		panic("'APP_MODE' not specified")
+	}
+	switch AppMode(appMode) {
+	case ServerMode:
+		srv := CreateServer()
+		log.Printf("Start serving on %s", srv.Addr)
+		log.Fatal(srv.ListenAndServe())
+	case WorkerMode:
+		wrk := CreateWorker()
+
+	default:
+		panic("Invalid 'APP_MODE'")
+	}
 }
