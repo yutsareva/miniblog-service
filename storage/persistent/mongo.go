@@ -12,6 +12,8 @@ import (
 	"log"
 	"miniblog/storage"
 	"miniblog/storage/models"
+	"os"
+	"sync"
 	"time"
 )
 
@@ -26,8 +28,18 @@ type Post struct {
 
 type Subscription struct {
 	Id             primitive.ObjectID `bson:"_id,omitempty"`
-	userId       string             `bson:"authorId,omitempty"`
-	SubscriptionId           string             `bson:"text,omitempty"`
+	userId         string             `bson:"authorId,omitempty"`
+	SubscriptionId string             `bson:"text,omitempty"`
+}
+
+type FeedItem struct {
+	Id             primitive.ObjectID `bson:"_id,omitempty"`
+	UserId         string             `bson:"userId,omitempty"`
+	PostId         string             `bson:"postId,omitempty" json:"id,omitempty"`
+	AuthorId       string             `bson:"authorId,omitempty" json:"authorId,omitempty"`
+	Text           string             `bson:"text,omitempty" json:"text,omitempty"`
+	CreatedAt      string             `bson:"createdAt,omitempty" json:"createdAt,omitempty"`
+	LastModifiedAt string             `bson:"lastModifiedAt,omitempty" json:"lastModifiedAt,omitempty"`
 }
 
 func (p *Post) GetId() string {
@@ -38,16 +50,32 @@ func (p *Post) GetVersion() int64 {
 	return p.Version
 }
 
+func (p *Post) GetAuthorId() string {
+	return p.AuthorId
+}
+
+func (p *Post) GetText() string {
+	return p.Text
+}
+
+func (p *Post) GetCreatedAt() string {
+	return p.CreatedAt
+}
+
+func (p *Post) GetLastModifiedAt() string {
+	return p.LastModifiedAt
+}
+
 type MongoStorage struct {
-	posts       *mongo.Collection
+	posts         *mongo.Collection
 	subscriptions *mongo.Collection
-	feed        *mongo.Collection
+	feed          *mongo.Collection
 }
 
 func (s *MongoStorage) Subscribe(ctx context.Context, userId string, subscriber string) error {
 	subscription := Subscription{
-		userId:       userId,
-		SubscriptionId:           subscriber,
+		userId:         userId,
+		SubscriptionId: subscriber,
 	}
 	id, err := s.subscriptions.InsertOne(ctx, subscription)
 	if err != nil {
@@ -197,19 +225,66 @@ func (s *MongoStorage) GetPost(ctx context.Context, postId string) (models.Post,
 	return &result, nil
 }
 
-func CreateMongoStorage(dbUrl, dbName string) storage.Storage {
-	ctx := context.Background()
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dbUrl))
-	if err != nil {
-		panic(err)
+func (s *MongoStorage) UpdateFeed(ctx context.Context, userId string, posts []models.Post) error {
+	var feedItems []interface{}
+	for _, post := range posts {
+		feedItem := FeedItem{
+			UserId:         userId,
+			PostId:         post.GetId(),
+			Text:           post.GetText(),
+			AuthorId:       post.GetAuthorId(),
+			CreatedAt:      post.GetCreatedAt(),
+			LastModifiedAt: post.GetLastModifiedAt(),
+		}
+		feedItems = append(feedItems, feedItem)
 	}
-	posts := client.Database(dbName).Collection("posts")
-	ensureIndexes(ctx, posts)
 
-	return &MongoStorage{
-		posts: posts,
+	_, err := s.feed.InsertMany(ctx, feedItems)
+	if err != nil {
+		return fmt.Errorf("failed to insert post: %w", storage.InternalError)
 	}
+	return nil
 }
+
+var mongoStorage *MongoStorage
+var once sync.Once
+
+func CreateMongoStorage(dbUrl, dbName string) *MongoStorage {
+	// make singleton
+	once.Do(func() {
+		ctx := context.Background()
+		client, err := mongo.Connect(ctx, options.Client().ApplyURI(dbUrl))
+		if err != nil {
+			panic(err)
+		}
+		posts := client.Database(dbName).Collection("posts")
+		subscriptions := client.Database(dbName).Collection("subscriptions")
+		feed := client.Database(dbName).Collection("feed")
+		ensureIndexes(ctx, posts)
+		mongoStorage = &MongoStorage{
+			posts: posts,
+			subscriptions: subscriptions,
+			feed: feed,
+		}
+	})
+	return mongoStorage
+}
+
+func GetMongoStorage() *MongoStorage {
+	once.Do(func() {
+		mongoUrl, found := os.LookupEnv("MONGO_URL")
+		if !found {
+			panic("'MONGO_URL' not specified")
+		}
+		mongoDbName, found := os.LookupEnv("MONGO_DBNAME")
+		if !found {
+			panic("'MONGO_DBNAME' not specified")
+		}
+		mongoStorage = CreateMongoStorage(mongoUrl, mongoDbName)
+	})
+	return mongoStorage
+}
+
 
 func ensureIndexes(ctx context.Context, posts *mongo.Collection) {
 	indexModels := []mongo.IndexModel{

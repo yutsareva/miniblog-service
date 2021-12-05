@@ -1,14 +1,51 @@
 package persistent_cached
 
 import (
+	"context"
 	"github.com/RichardKnop/machinery/v1"
 	"github.com/RichardKnop/machinery/v1/config"
 	"github.com/RichardKnop/machinery/v1/tasks"
+	//"go.mongodb.org/mongo-driver/mongo"
+	//"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
+	"miniblog/storage/persistent"
+	//"sync"
 
 	//"github.com/RichardKnop/machinery/v1/log"
 	//"github.com/RichardKnop/machinery/v1/tasks"
 )
+
+const (
+	PAGE_SIZE int = 100
+)
+
+func addSubscription(userId, subscriber string) (int, error) {
+	addedPostCount := 0
+	mongo := persistent.GetMongoStorage()
+	page := ""
+
+	for true {
+		posts, maybePage, err := mongo.GetPostsByUserId(context.Background(), &userId, &page, PAGE_SIZE)
+		if err != nil {
+			log.Printf("Failed to process subscription: %s; %s -> %s", err.Error(), subscriber, userId)
+			return 0, err
+		}
+
+		err = mongo.UpdateFeed(context.Background(), userId, posts)
+		if err != nil {
+			log.Printf("Failed to process subscription: %s; %s -> %s", err.Error(), subscriber, userId)
+			return 0, err
+		}
+
+		addedPostCount += len(posts)
+		if maybePage != nil {
+			page = *maybePage
+		} else {
+			break
+		}
+	}
+	return addedPostCount, nil
+}
 
 func startBroker(redisUrl string) (*machinery.Server, error) {
 	cnf := &config.Config{

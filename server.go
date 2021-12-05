@@ -12,10 +12,10 @@ import (
 	"net/http"
 	"os"
 	"time"
-
 )
 
 type StorageMode string
+
 const (
 	InMemory       StorageMode = "inmemory"
 	Mongo                      = "mongo"
@@ -23,9 +23,10 @@ const (
 )
 
 type AppMode string
+
 const (
-	ServerMode       AppMode = "server"
-	WorkerMode               = "worker"
+	ServerMode AppMode = "server"
+	WorkerMode         = "worker"
 )
 
 func CreateServer() *http.Server {

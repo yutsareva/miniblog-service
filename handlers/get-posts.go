@@ -11,7 +11,6 @@ import (
 	"strconv"
 )
 
-
 type PostByUserIdResponse struct {
 	Posts    []models.Post `json:"posts,omitempty"`
 	NextPage *string       `json:"nextPage,omitempty"`

@@ -83,7 +83,7 @@ func CreatePersistentStorageCachedWithRedis(persistentStorage storage.Storage, r
 	return &PersistentStorageWithCache{
 		client:            redisClient,
 		persistentStorage: persistentStorage,
-		broker:			   broker,
+		broker:            broker,
 	}
 }
 

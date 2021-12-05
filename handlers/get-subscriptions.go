@@ -9,7 +9,7 @@ import (
 )
 
 type Subscriptions struct {
-	Users    []string `json:"users"`
+	Users []string `json:"users"`
 }
 
 func (h *HTTPHandler) HandleGetSubscriptions(w http.ResponseWriter, r *http.Request) {
@@ -43,4 +43,3 @@ func (h *HTTPHandler) HandleGetSubscriptions(w http.ResponseWriter, r *http.Requ
 	}
 	w.Write(rawResponse)
 }
-

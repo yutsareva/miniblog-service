@@ -10,7 +10,6 @@ import (
 	"strconv"
 )
 
-
 type FeedResponse struct {
 	Posts    []models.Post `json:"posts,omitempty"`
 	NextPage *string       `json:"nextPage,omitempty"`

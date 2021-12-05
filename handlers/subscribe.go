@@ -6,7 +6,6 @@ import (
 	"path"
 )
 
-
 func (h *HTTPHandler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 	subscriberId := r.Header.Get("System-Design-User-Id")
 	userId := path.Base(path.Dir(r.URL.Path))
