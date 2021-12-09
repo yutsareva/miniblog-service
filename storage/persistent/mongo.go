@@ -86,11 +86,59 @@ func (s *MongoStorage) Subscribe(ctx context.Context, userId string, subscriber 
 }
 
 func (s *MongoStorage) GetSubscriptions(ctx context.Context, userId string) ([]string, error) {
-	panic("implement me")
+		cursor, err := s.subscriptions.Find(
+			ctx,
+			bson.D{
+				{"userId", userId},
+			},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find subscriptions for user: %s, %w", err.Error(), storage.InternalError)
+		}
+		defer func(cursor *mongo.Cursor, ctx context.Context) {
+			err := cursor.Close(ctx)
+			if err != nil {
+				log.Printf("Cursor closing failed: %s", err.Error())
+			}
+		}(cursor, ctx)
+
+		var subscriptions []string
+		for cursor.Next(ctx) {
+			var nextSubscription Subscription
+			if err = cursor.Decode(&nextSubscription); err != nil {
+				return nil, fmt.Errorf("decode error: %s, %w", err, storage.InternalError)
+			}
+			subscriptions = append(subscriptions, nextSubscription.SubscriptionId)
+		}
+		return subscriptions, nil
 }
 
 func (s *MongoStorage) GetSubscribers(ctx context.Context, userId string) ([]string, error) {
-	panic("implement me")
+	cursor, err := s.subscriptions.Find(
+		ctx,
+		bson.D{
+			{"subscriptionId", userId},
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find subscribers for user: %s, %w", err.Error(), storage.InternalError)
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			log.Printf("Cursor closing failed: %s", err.Error())
+		}
+	}(cursor, ctx)
+
+	var subscribers []string
+	for cursor.Next(ctx) {
+		var nextSubscription Subscription
+		if err = cursor.Decode(&nextSubscription); err != nil {
+			return nil, fmt.Errorf("decode error: %s, %w", err, storage.InternalError)
+		}
+		subscribers = append(subscribers, nextSubscription.userId)
+	}
+	return subscribers, nil
 }
 
 func (s *MongoStorage) Feed(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
