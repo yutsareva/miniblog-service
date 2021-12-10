@@ -13,7 +13,7 @@ services:
       STORAGE_MODE: 'mongo'
       MONGO_URL: 'mongodb://database:27017'
       MONGO_DBNAME: 'miniblogs'
-      REDIS_URL: 'redis://cache:6379'
+      REDIS_URL: 'cache:6379'
       APP_MODE: 'SERVER'
   worker:
     build: .
@@ -24,7 +24,7 @@ services:
       STORAGE_MODE: 'mongo'
       MONGO_URL: 'mongodb://database:27017'
       MONGO_DBNAME: 'miniblogs'
-      REDIS_URL: 'redis://cache:6379'
+      REDIS_URL: 'cache:6379'
       APP_MODE: 'WORKER'
   database:
     image: mongo:4.4

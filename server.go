@@ -58,13 +58,13 @@ func CreateServer() *http.Server {
 			panic("'REDIS_URL' was not specified for 'cached' STORAGE_MODE")
 		}
 		if StorageMode(storageMode) == Mongo {
-			storage = persistent.CreateMongoStorageWithBroker(mongoUrl, mongoDbName, brokerUrl)
+			storage = persistent.CreateMongoStorageWithBroker(mongoUrl, mongoDbName, "redis://" + brokerUrl)
 		} else if StorageMode(storageMode) == MongoWithCache {
 			cacheUrl, found := os.LookupEnv("REDIS_CACHE_URL")
 			if !found {
 				panic("'REDIS_CACHE_URL' was not specified for 'cached' STORAGE_MODE")
 			}
-			persistentStorage := persistent.CreateMongoStorageWithBroker(mongoUrl, mongoDbName, brokerUrl)
+			persistentStorage := persistent.CreateMongoStorageWithBroker(mongoUrl, mongoDbName, "redis://" + brokerUrl)
 			storage = persistent_cached.CreatePersistentStorageCachedWithRedis(persistentStorage, cacheUrl)
 
 		} else {
@@ -107,7 +107,7 @@ func main() {
 		if !found {
 			panic("'REDIS_URL' was not specified for 'cached' STORAGE_MODE")
 		}
-		if err := persistent.CreateWorker(redisUrl); err != nil {
+		if err := persistent.CreateWorker("redis://" + redisUrl); err != nil {
 			panic("Failed to start worker: " + err.Error())
 		}
 	default:
