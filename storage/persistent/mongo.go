@@ -27,8 +27,8 @@ type Post struct {
 
 type Subscription struct {
 	Id             primitive.ObjectID `bson:"_id,omitempty"`
-	userId         string             `bson:"authorId,omitempty"`
-	SubscriptionId string             `bson:"text,omitempty"`
+	userId         string             `bson:"userId,omitempty"`
+	SubscriptionId string             `bson:"subscriptionId,omitempty"`
 }
 
 // TODO: rm json
@@ -363,7 +363,9 @@ func CreateMongoStorage(dbUrl, dbName string) *MongoStorage {
 		posts := client.Database(dbName).Collection("posts")
 		subscriptions := client.Database(dbName).Collection("subscriptions")
 		feed := client.Database(dbName).Collection("feed")
-		ensureIndexes(ctx, posts)
+		ensurePostsIndexes(ctx, posts)
+		ensureFeedIndexes(ctx, feed)
+		ensureSubscriptionsIndexes(ctx, subscriptions)
 		mongoStorage = &MongoStorage{
 			posts:         posts,
 			subscriptions: subscriptions,
