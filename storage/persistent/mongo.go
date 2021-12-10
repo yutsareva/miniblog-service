@@ -32,6 +32,8 @@ type Subscription struct {
 	SubscriptionId string             `bson:"text,omitempty"`
 }
 
+// TODO: rm json
+
 type FeedItem struct {
 	Id             primitive.ObjectID `bson:"_id,omitempty"`
 	UserId         string             `bson:"userId,omitempty"`
@@ -392,7 +394,7 @@ func ensureIndexes(ctx context.Context, posts *mongo.Collection) {
 	indexModels := []mongo.IndexModel{
 		{
 			Keys: bsonx.Doc{
-				{Key: "author_id", Value: bsonx.Int32(1)},
+				{Key: "authorId", Value: bsonx.Int32(1)},
 				{Key: "_id", Value: bsonx.Int32(1)},
 			},
 		},
