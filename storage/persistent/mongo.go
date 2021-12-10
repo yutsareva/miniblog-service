@@ -8,7 +8,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/x/bsonx"
 	"log"
 	"miniblog/storage"
 	"miniblog/storage/models"
@@ -88,31 +87,31 @@ func (s *MongoStorage) Subscribe(ctx context.Context, userId string, subscriber 
 }
 
 func (s *MongoStorage) GetSubscriptions(ctx context.Context, userId string) ([]string, error) {
-		cursor, err := s.subscriptions.Find(
-			ctx,
-			bson.D{
-				{"userId", userId},
-			},
-		)
+	cursor, err := s.subscriptions.Find(
+		ctx,
+		bson.D{
+			{"userId", userId},
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find subscriptions for user: %s, %w", err.Error(), storage.InternalError)
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to find subscriptions for user: %s, %w", err.Error(), storage.InternalError)
+			log.Printf("Cursor closing failed: %s", err.Error())
 		}
-		defer func(cursor *mongo.Cursor, ctx context.Context) {
-			err := cursor.Close(ctx)
-			if err != nil {
-				log.Printf("Cursor closing failed: %s", err.Error())
-			}
-		}(cursor, ctx)
+	}(cursor, ctx)
 
-		var subscriptions []string
-		for cursor.Next(ctx) {
-			var nextSubscription Subscription
-			if err = cursor.Decode(&nextSubscription); err != nil {
-				return nil, fmt.Errorf("decode error: %s, %w", err, storage.InternalError)
-			}
-			subscriptions = append(subscriptions, nextSubscription.SubscriptionId)
+	var subscriptions []string
+	for cursor.Next(ctx) {
+		var nextSubscription Subscription
+		if err = cursor.Decode(&nextSubscription); err != nil {
+			return nil, fmt.Errorf("decode error: %s, %w", err, storage.InternalError)
 		}
-		return subscriptions, nil
+		subscriptions = append(subscriptions, nextSubscription.SubscriptionId)
+	}
+	return subscriptions, nil
 }
 
 func (s *MongoStorage) GetSubscribers(ctx context.Context, userId string) ([]string, error) {
@@ -144,60 +143,60 @@ func (s *MongoStorage) GetSubscribers(ctx context.Context, userId string) ([]str
 }
 
 func (s *MongoStorage) Feed(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
-		options := options.Find()
-		options.SetSort(bson.D{{"postId", -1}})
-		options.SetLimit(int64(size + 1))
+	queryOptions := options.Find()
+	queryOptions.SetSort(bson.D{{"postId", -1}})
+	queryOptions.SetLimit(int64(size + 1))
 
-		minPage := "ffffffffffffffffffffffff"
-		if page == nil {
-			page = &minPage
-		}
-		pageMongoId, err := primitive.ObjectIDFromHex(*page)
+	minPage := "ffffffffffffffffffffffff"
+	if page == nil {
+		page = &minPage
+	}
+	pageMongoId, err := primitive.ObjectIDFromHex(*page)
+	if err != nil {
+		return nil, nil, fmt.Errorf("feed: failed to convert provided page to Mongo object id: %s, %w", err.Error(), storage.ClientError)
+	}
+	cursor, err := s.feed.Find(
+		ctx,
+		bson.D{
+			{"authorId", *userId},
+			{"postId", bson.D{{"$lte", pageMongoId}}},
+		},
+		queryOptions,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("feed: failed to find posts by author: %s, %w", err.Error(), storage.InternalError)
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
 		if err != nil {
-			return nil, nil, fmt.Errorf("feed: failed to convert provided page to Mongo object id: %s, %w", err.Error(), storage.ClientError)
+			log.Printf("feed: cursor closing failed: %s", err.Error())
 		}
-		cursor, err := s.feed.Find(
-			ctx,
-			bson.D{
-				{"authorId", *userId},
-				{"postId", bson.D{{"$lte", pageMongoId}}},
-			},
-			options,
-		)
-		if err != nil {
-			return nil, nil, fmt.Errorf("feed: failed to find posts by author: %s, %w", err.Error(), storage.InternalError)
-		}
-		defer func(cursor *mongo.Cursor, ctx context.Context) {
-			err := cursor.Close(ctx)
-			if err != nil {
-				log.Printf("feed: cursor closing failed: %s", err.Error())
-			}
-		}(cursor, ctx)
+	}(cursor, ctx)
 
-		posts := make([]models.Post, 0)
-		var nextPage string
-		for len(posts) != size+1 && cursor.Next(ctx) {
-			var nextFeedItem FeedItem
-			if err = cursor.Decode(&nextFeedItem); err != nil {
-				return nil, nil, fmt.Errorf("decode error: %s, %w", err, storage.InternalError)
-			}
-			var nextPost = Post{
-				Id: nextFeedItem.PostId,
-				AuthorId: nextFeedItem.AuthorId,
-				Text: nextFeedItem.Text,
-				CreatedAt: nextFeedItem.CreatedAt,
-				LastModifiedAt: nextFeedItem.LastModifiedAt,
-			}
-			if len(posts) == size {
-				nextPage = nextPost.Id.Hex()
-				return posts, &nextPage, nil
-			}
-			posts = append(posts, &nextPost)
+	posts := make([]models.Post, 0)
+	var nextPage string
+	for len(posts) != size+1 && cursor.Next(ctx) {
+		var nextFeedItem FeedItem
+		if err = cursor.Decode(&nextFeedItem); err != nil {
+			return nil, nil, fmt.Errorf("decode error: %s, %w", err, storage.InternalError)
 		}
-		if len(posts) == 0 && *page != minPage {
-			return nil, nil, fmt.Errorf("provided page for non-existent user", storage.ClientError)
+		var nextPost = Post{
+			Id:             nextFeedItem.PostId,
+			AuthorId:       nextFeedItem.AuthorId,
+			Text:           nextFeedItem.Text,
+			CreatedAt:      nextFeedItem.CreatedAt,
+			LastModifiedAt: nextFeedItem.LastModifiedAt,
 		}
-		return posts, nil, nil
+		if len(posts) == size {
+			nextPage = nextPost.Id.Hex()
+			return posts, &nextPage, nil
+		}
+		posts = append(posts, &nextPost)
+	}
+	if len(posts) == 0 && *page != minPage {
+		return nil, nil, fmt.Errorf("provided page for non-existent user", storage.ClientError)
+	}
+	return posts, nil, nil
 }
 
 func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId string, text string) (models.Post, error) {
@@ -246,9 +245,9 @@ func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId stri
 func (s *MongoStorage) GetPostsByUserId(
 	ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
 
-	options := options.Find()
-	options.SetSort(bson.D{{"_id", -1}})
-	options.SetLimit(int64(size + 1))
+	queryOptions := options.Find()
+	queryOptions.SetSort(bson.D{{"_id", -1}})
+	queryOptions.SetLimit(int64(size + 1))
 
 	minPage := "ffffffffffffffffffffffff"
 	if page == nil {
@@ -264,7 +263,7 @@ func (s *MongoStorage) GetPostsByUserId(
 			{"authorId", *userId},
 			{"_id", bson.D{{"$lte", pageMongoId}}},
 		},
-		options,
+		queryOptions,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find posts by author: %s, %w", err.Error(), storage.InternalError)
@@ -366,9 +365,9 @@ func CreateMongoStorage(dbUrl, dbName string) *MongoStorage {
 		feed := client.Database(dbName).Collection("feed")
 		ensureIndexes(ctx, posts)
 		mongoStorage = &MongoStorage{
-			posts: posts,
+			posts:         posts,
 			subscriptions: subscriptions,
-			feed: feed,
+			feed:          feed,
 		}
 	})
 	return mongoStorage
@@ -387,22 +386,4 @@ func GetMongoStorage() *MongoStorage {
 		mongoStorage = CreateMongoStorage(mongoUrl, mongoDbName)
 	})
 	return mongoStorage
-}
-
-
-func ensureIndexes(ctx context.Context, posts *mongo.Collection) {
-	indexModels := []mongo.IndexModel{
-		{
-			Keys: bsonx.Doc{
-				{Key: "authorId", Value: bsonx.Int32(1)},
-				{Key: "_id", Value: bsonx.Int32(1)},
-			},
-		},
-	}
-	opts := options.CreateIndexes().SetMaxTime(10 * time.Second)
-
-	_, err := posts.Indexes().CreateMany(ctx, indexModels, opts)
-	if err != nil {
-		panic(fmt.Errorf("failed to ensure indexes %w", err))
-	}
 }
