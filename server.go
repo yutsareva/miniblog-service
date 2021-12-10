@@ -39,7 +39,7 @@ func CreateServer() *http.Server {
 
 	storageMode, found := os.LookupEnv("STORAGE_MODE")
 	if !found {
-		storageMode = "inmemory"
+		storageMode = "mongo"
 	}
 	var storage storage.Storage
 	if StorageMode(storageMode) == InMemory {
