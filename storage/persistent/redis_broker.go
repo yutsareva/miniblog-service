@@ -5,12 +5,8 @@ import (
 	"github.com/RichardKnop/machinery/v1"
 	"github.com/RichardKnop/machinery/v1/config"
 	"github.com/RichardKnop/machinery/v1/tasks"
-	//"go.mongodb.org/mongo-driver/mongo"
-	//"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"log"
-	//"sync"
-	//"github.com/RichardKnop/machinery/v1/log"
-	//"github.com/RichardKnop/machinery/v1/tasks"
 )
 
 const (
@@ -30,12 +26,12 @@ func addSubscription(userId, subscriber string) (int, error) {
 			return 0, err
 		}
 
-		err = mongo.UpdateFeed(context.Background(), subscriber, posts)
+		err = mongo.UpdateFeedNewSubscription(context.Background(), subscriber, posts)
 		if err != nil {
 			log.Printf("Failed to process subscription: %s; %s -> %s", err.Error(), subscriber, userId)
 			return 0, err
 		}
-		log.Printf("Added %d posts to feed for user %s", len(posts), userId)
+		log.Printf("Added %d posts to feed from user %s to subscriber %s", len(posts), userId, subscriber)
 
 		addedPostCount += len(posts)
 		if maybePage != nil {
@@ -44,7 +40,41 @@ func addSubscription(userId, subscriber string) (int, error) {
 			break
 		}
 	}
+	log.Printf("Added %d feed items for user %s", addedPostCount, subscriber)
 	return addedPostCount, nil
+}
+
+func addPost(postId string, authorId string) (int, error) {
+	mongo := GetMongoStorageWithoutBroker()
+
+	subscribers, err := mongo.GetSubscribers(context.Background(), authorId)
+	log.Printf("Got %d subscribers for post %s: %s", len(subscribers), postId, subscribers)
+	if err != nil {
+		log.Printf("Failed to process adding post %s to feed: %s", postId, err.Error())
+		return 0, err
+	}
+
+	addedFeedItems, err := mongo.UpdateFeedNewPost(context.Background(), postId, subscribers)
+	if err != nil {
+		log.Printf("Failed to process adding post %s to feed: %s", postId, err.Error())
+		return 0, err
+	}
+
+	log.Printf("Added %d feed items from author %s", addedFeedItems, authorId)
+	return addedFeedItems, nil
+}
+
+func patchPost(postId string) (int, error) {
+	mongo := GetMongoStorageWithoutBroker()
+
+	addedFeedItems, err := mongo.UpdateFeedPatchPost(context.Background(), postId)
+	if err != nil {
+		log.Printf("Failed to process adding post %s to feed: %s", postId, err.Error())
+		return 0, err
+	}
+
+	log.Printf("Updated %d feed items", addedFeedItems)
+	return addedFeedItems, nil
 }
 
 func CreateWorker(redisUrl string) error {
@@ -90,6 +120,8 @@ func startBroker(brokerUrl string) (*machinery.Server, error) {
 	// Register tasks
 	tasks := map[string]interface{}{
 		"addSubscription": addSubscription,
+		"addPost":         addPost,
+		"patchPost":       patchPost,
 	}
 	return server, server.RegisterTasks(tasks)
 }
@@ -105,6 +137,36 @@ func createAddSubscriptionTask(userId, subscriber string) tasks.Signature {
 			{
 				Type:  "string",
 				Value: subscriber,
+			},
+		},
+	}
+	return task
+}
+
+func createAddPostTask(postId primitive.ObjectID, authorId string) tasks.Signature {
+	task := tasks.Signature{
+		Name: "addPost",
+		Args: []tasks.Arg{
+			{
+				Type:  "string",
+				Value: postId.Hex(),
+			},
+			{
+				Type:  "string",
+				Value: authorId,
+			},
+		},
+	}
+	return task
+}
+
+func createPatchPostTask(postId primitive.ObjectID) tasks.Signature {
+	task := tasks.Signature{
+		Name: "patchPost",
+		Args: []tasks.Arg{
+			{
+				Type:  "string",
+				Value: postId.Hex(),
 			},
 		},
 	}

@@ -95,7 +95,7 @@ func (s *MongoStorageWithBroker) Subscribe(ctx context.Context, userId string, s
 	task := createAddSubscriptionTask(userId, subscriber)
 	_, err = s.broker.SendTaskWithContext(context.Background(), &task)
 	if err != nil {
-		return fmt.Errorf("could not send task: %s", err.Error())
+		return fmt.Errorf("could not send task: %s %w", err.Error(), storage.InternalError)
 	}
 	//results, err := asyncResult.Get(time.Duration(1 * time.Second))
 	//if err != nil {
@@ -258,6 +258,12 @@ func (s *MongoStorageWithBroker) PatchPost(ctx context.Context, postId string, u
 	}
 
 	mongoResult.Decode(&result)
+
+	task := createPatchPostTask(result.Id)
+	_, err = s.broker.SendTaskWithContext(context.Background(), &task)
+	if err != nil {
+		return nil, fmt.Errorf("could not send task: %s %w", err.Error(), storage.InternalError)
+	}
 	return &result, nil
 }
 
@@ -327,6 +333,17 @@ func (s *MongoStorageWithBroker) AddPost(ctx context.Context, userId string, tex
 		return nil, fmt.Errorf("failed to insert post: %s %w", err.Error(), storage.InternalError)
 	}
 	post.Id = id.InsertedID.(primitive.ObjectID)
+
+	task := createAddPostTask(post.Id, post.AuthorId)
+	_, err = s.broker.SendTaskWithContext(context.Background(), &task)
+	if err != nil {
+		return nil, fmt.Errorf("could not send task: %s %w", err.Error(), storage.InternalError)
+	}
+	//results, err := asyncResult.Get(time.Duration(1 * time.Second))
+	//if err != nil {
+	//	return fmt.Errorf("getting task result failed with error: %s", err.Error())
+	//}
+	//log.Printf("%v\n", tasks.HumanReadableResults(results))
 	return &post, nil
 }
 
@@ -346,7 +363,7 @@ func (s *MongoStorageWithBroker) GetPost(ctx context.Context, postId string) (mo
 	return &result, nil
 }
 
-func (s *MongoStorageWithBroker) UpdateFeed(ctx context.Context, userId string, posts []models.Post) error {
+func (s *MongoStorageWithBroker) UpdateFeedNewSubscription(ctx context.Context, userId string, posts []models.Post) error {
 	var feedItems []interface{}
 	for _, post := range posts {
 		postId, _ := primitive.ObjectIDFromHex(post.GetId())
@@ -364,11 +381,65 @@ func (s *MongoStorageWithBroker) UpdateFeed(ctx context.Context, userId string, 
 		log.Printf("Update feed: nothing to insert")
 		return nil
 	}
+	// TODO: upsert instead of insert
 	_, err := s.mongo.feed.InsertMany(ctx, feedItems)
 	if err != nil {
 		return fmt.Errorf("failed to insert post: %s %w", err.Error(), storage.InternalError)
 	}
 	return nil
+}
+
+func (s *MongoStorageWithBroker) UpdateFeedNewPost(ctx context.Context, postId string, subscribers []string) (int, error) {
+	post, err := s.GetPost(ctx, postId)
+	if err != nil {
+		return 0, fmt.Errorf("update feed: failed to get post by id: %s %w", err.Error(), storage.InternalError)
+	}
+
+	var feedItems []interface{}
+	for _, subscriber := range subscribers {
+		postId, _ := primitive.ObjectIDFromHex(post.GetId())
+		feedItem := FeedItem{
+			UserId:         subscriber,
+			PostId:         postId,
+			Text:           post.GetText(),
+			AuthorId:       post.GetAuthorId(),
+			CreatedAt:      post.GetCreatedAt(),
+			LastModifiedAt: post.GetLastModifiedAt(),
+		}
+		feedItems = append(feedItems, feedItem)
+	}
+	if len(feedItems) == 0 {
+		log.Printf("Update feed: nothing to insert")
+		return 0, nil
+	}
+	// TODO: upsert instead of insert
+	ids, err := s.mongo.feed.InsertMany(ctx, feedItems)
+	log.Printf("update feed - added post: Inserted %s feedItems", ids)
+	if err != nil {
+		return 0, fmt.Errorf("failed to insert post: %s %w", err.Error(), storage.InternalError)
+	}
+	return len(feedItems), nil
+}
+
+func (s *MongoStorageWithBroker) UpdateFeedPatchPost(ctx context.Context, postId string) (int, error) {
+	post, err := s.GetPost(ctx, postId)
+	if err != nil {
+		return 0, fmt.Errorf("update feed: failed to get post by id: %s %w", err.Error(), storage.InternalError)
+	}
+	postObjId, _ := primitive.ObjectIDFromHex(postId)
+	filter := bson.M{"postId": postObjId}
+	updateInfo := bson.M{
+		"$set": bson.M{
+			"text":           post.GetText(),
+			"lastModifiedAt": post.GetLastModifiedAt(),
+		},
+	}
+	ids, err := s.mongo.feed.UpdateMany(ctx, filter, updateInfo)
+	log.Printf("update feed - patched post: Updated %d feedItems: %s", ids.ModifiedCount, ids)
+	if err != nil {
+		return 0, fmt.Errorf("failed to patch post: %s %w", err.Error(), storage.InternalError)
+	}
+	return int(ids.ModifiedCount), nil
 }
 
 var mongoStorage *MongoStorage
