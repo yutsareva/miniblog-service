@@ -28,7 +28,8 @@ Environment variables:
       `MONGO_URL`, `MONGO_DBNAME`, `REDIS_URL`
 - `MONGO_URL` --- address to connect to MongoDB
 - `MONGO_DBNAME` --- MongoDB database name
-- `REDIS_URL` --- address to connect to Redis
+- `REDIS_URL` --- address to connect to Redis to use it as message broker
+- `REDIS_CACHE_URL` --- address to connect to Redis to use it as cache
 - `APP_MODE` -- application mode. Possible values:
     - `SERVER` - server mode, accepts requests
     - `WORKER` - valid only for `STORAGE_MODE = mongo` configuration.
