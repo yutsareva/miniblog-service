@@ -28,8 +28,8 @@ type Post struct {
 
 type Subscription struct {
 	Id             primitive.ObjectID `bson:"_id,omitempty"`
-	userId         string             `bson:"userId,omitempty"`
 	SubscriptionId string             `bson:"subscriptionId,omitempty"`
+	UserId         string             `bson:"userId,omitempty"`
 }
 
 // TODO: rm json
@@ -81,10 +81,12 @@ type MongoStorageWithBroker struct {
 
 func (s *MongoStorageWithBroker) Subscribe(ctx context.Context, userId string, subscriber string) error {
 	subscription := Subscription{
-		userId:         subscriber,
+		UserId:         subscriber,
 		SubscriptionId: userId,
 	}
-	id, err := s.mongo.subscriptions.InsertOne(ctx, subscription)
+	upsertSubscribtion := bson.D{{"$set", subscription}}
+	queryOptions := options.Update().SetUpsert(true)
+	id, err := s.mongo.subscriptions.UpdateOne(ctx, subscription, upsertSubscribtion, queryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to insert subscription: %w", storage.InternalError)
 	}
@@ -95,7 +97,6 @@ func (s *MongoStorageWithBroker) Subscribe(ctx context.Context, userId string, s
 	if err != nil {
 		return fmt.Errorf("could not send task: %s", err.Error())
 	}
-
 	//results, err := asyncResult.Get(time.Duration(1 * time.Second))
 	//if err != nil {
 	//	return fmt.Errorf("getting task result failed with error: %s", err.Error())
@@ -110,7 +111,6 @@ func (s *MongoStorageWithBroker) GetSubscriptions(ctx context.Context, userId st
 		bson.D{
 			{"userId", userId},
 		},
-		options.Find(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find subscriptions for user: %s, %w", err.Error(), storage.InternalError)
@@ -139,7 +139,6 @@ func (s *MongoStorageWithBroker) GetSubscribers(ctx context.Context, userId stri
 		bson.D{
 			{"subscriptionId", userId},
 		},
-		options.Find(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find subscribers for user: %s, %w", err.Error(), storage.InternalError)
@@ -157,7 +156,7 @@ func (s *MongoStorageWithBroker) GetSubscribers(ctx context.Context, userId stri
 		if err = cursor.Decode(&nextSubscription); err != nil {
 			return nil, fmt.Errorf("decode error: %s, %w", err, storage.InternalError)
 		}
-		subscribers = append(subscribers, nextSubscription.userId)
+		subscribers = append(subscribers, nextSubscription.UserId)
 	}
 	return subscribers, nil
 }
@@ -195,7 +194,7 @@ func (s *MongoStorageWithBroker) Feed(ctx context.Context, userId *string, page 
 
 	posts := make([]models.Post, 0)
 	var nextPage string
-	for len(posts) != size + 1 && cursor.Next(ctx) {
+	for len(posts) != size+1 && cursor.Next(ctx) {
 		var nextFeedItem FeedItem
 		if err = cursor.Decode(&nextFeedItem); err != nil {
 			return nil, nil, fmt.Errorf("decode error: %s, %w", err, storage.InternalError)
@@ -365,9 +364,7 @@ func (s *MongoStorageWithBroker) UpdateFeed(ctx context.Context, userId string, 
 		log.Printf("Update feed: nothing to insert")
 		return nil
 	}
-	log.Printf("Insert feed %d", len(posts))
-	insertedIds, err := s.mongo.feed.InsertMany(ctx, feedItems)
-	log.Printf("Inserted to feed %s", insertedIds)
+	_, err := s.mongo.feed.InsertMany(ctx, feedItems)
 	if err != nil {
 		return fmt.Errorf("failed to insert post: %s %w", err.Error(), storage.InternalError)
 	}

@@ -9,8 +9,12 @@ import (
 func (h *HTTPHandler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 	subscriberId := r.Header.Get("System-Design-User-Id")
 	userId := path.Base(path.Dir(r.URL.Path))
-	if subscriberId == "" || userId == "" || userId == subscriberId {
+	if subscriberId == "" || userId == "" {
 		http.Error(w, "Invalid user token", http.StatusUnauthorized)
+		return
+	}
+	if userId == subscriberId {
+		http.Error(w, "You cannot subscribe yourself.", http.StatusBadRequest)
 		return
 	}
 

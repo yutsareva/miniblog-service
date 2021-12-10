@@ -19,27 +19,23 @@ const (
 
 func addSubscription(userId, subscriber string) (int, error) {
 	addedPostCount := 0
-	log.Printf("addSubscription get storage")
 	mongo := GetMongoStorageWithoutBroker()
 	var page *string
 	page = nil
-	log.Printf("Start")
 
 	for true {
-		log.Printf("GetPostsByUserId")
 		posts, maybePage, err := mongo.GetPostsByUserId(context.Background(), &userId, page, PAGE_SIZE)
 		if err != nil {
 			log.Printf("Failed to process subscription: %s; %s -> %s", err.Error(), subscriber, userId)
 			return 0, err
 		}
-		log.Printf("Got %d posts", len(posts))
 
 		err = mongo.UpdateFeed(context.Background(), subscriber, posts)
 		if err != nil {
 			log.Printf("Failed to process subscription: %s; %s -> %s", err.Error(), subscriber, userId)
 			return 0, err
 		}
-		log.Printf("Added %d posts", len(posts))
+		log.Printf("Added %d posts to feed for user %s", len(posts), userId)
 
 		addedPostCount += len(posts)
 		if maybePage != nil {
