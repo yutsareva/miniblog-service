@@ -35,7 +35,7 @@ type Subscription struct {
 type FeedItem struct {
 	Id             primitive.ObjectID `bson:"_id,omitempty"`
 	UserId         string             `bson:"userId,omitempty"`
-	PostId         string             `bson:"postId,omitempty" json:"id,omitempty"`
+	PostId         primitive.ObjectID `bson:"postId,omitempty" json:"id,omitempty"`
 	AuthorId       string             `bson:"authorId,omitempty" json:"authorId,omitempty"`
 	Text           string             `bson:"text,omitempty" json:"text,omitempty"`
 	CreatedAt      string             `bson:"createdAt,omitempty" json:"createdAt,omitempty"`
@@ -142,7 +142,60 @@ func (s *MongoStorage) GetSubscribers(ctx context.Context, userId string) ([]str
 }
 
 func (s *MongoStorage) Feed(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
-	panic("implement me")
+		options := options.Find()
+		options.SetSort(bson.D{{"postId", -1}})
+		options.SetLimit(int64(size + 1))
+
+		minPage := "ffffffffffffffffffffffff"
+		if page == nil {
+			page = &minPage
+		}
+		pageMongoId, err := primitive.ObjectIDFromHex(*page)
+		if err != nil {
+			return nil, nil, fmt.Errorf("feed: failed to convert provided page to Mongo object id: %s, %w", err.Error(), storage.ClientError)
+		}
+		cursor, err := s.feed.Find(
+			ctx,
+			bson.D{
+				{"authorId", *userId},
+				{"postId", bson.D{{"$lte", pageMongoId}}},
+			},
+			options,
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf("feed: failed to find posts by author: %s, %w", err.Error(), storage.InternalError)
+		}
+		defer func(cursor *mongo.Cursor, ctx context.Context) {
+			err := cursor.Close(ctx)
+			if err != nil {
+				log.Printf("feed: cursor closing failed: %s", err.Error())
+			}
+		}(cursor, ctx)
+
+		posts := make([]models.Post, 0)
+		var nextPage string
+		for len(posts) != size+1 && cursor.Next(ctx) {
+			var nextFeedItem FeedItem
+			if err = cursor.Decode(&nextFeedItem); err != nil {
+				return nil, nil, fmt.Errorf("decode error: %s, %w", err, storage.InternalError)
+			}
+			var nextPost = Post{
+				Id: nextFeedItem.PostId,
+				AuthorId: nextFeedItem.AuthorId,
+				Text: nextFeedItem.Text,
+				CreatedAt: nextFeedItem.CreatedAt,
+				LastModifiedAt: nextFeedItem.LastModifiedAt,
+			}
+			if len(posts) == size {
+				nextPage = nextPost.Id.Hex()
+				return posts, &nextPage, nil
+			}
+			posts = append(posts, &nextPost)
+		}
+		if len(posts) == 0 && *page != minPage {
+			return nil, nil, fmt.Errorf("provided page for non-existent user", storage.ClientError)
+		}
+		return posts, nil, nil
 }
 
 func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId string, text string) (models.Post, error) {
@@ -276,9 +329,10 @@ func (s *MongoStorage) GetPost(ctx context.Context, postId string) (models.Post,
 func (s *MongoStorage) UpdateFeed(ctx context.Context, userId string, posts []models.Post) error {
 	var feedItems []interface{}
 	for _, post := range posts {
+		postId, _ := primitive.ObjectIDFromHex(post.GetId())
 		feedItem := FeedItem{
 			UserId:         userId,
-			PostId:         post.GetId(),
+			PostId:         postId,
 			Text:           post.GetText(),
 			AuthorId:       post.GetAuthorId(),
 			CreatedAt:      post.GetCreatedAt(),
