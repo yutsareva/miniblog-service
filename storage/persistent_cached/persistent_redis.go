@@ -3,16 +3,12 @@ package persistent_cached
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"github.com/RichardKnop/machinery/v1"
-	"github.com/RichardKnop/machinery/v1/tasks"
 	"github.com/go-redis/redis/v8"
 	"log"
 	"miniblog/storage"
 	"miniblog/storage/models"
 	"miniblog/storage/persistent"
 	"strconv"
-	"time"
 )
 
 // TODO: retry on redis fails
@@ -75,22 +71,15 @@ func CreatePersistentStorageCachedWithRedis(persistentStorage storage.Storage, r
 		Addr: redisUrl,
 	})
 
-	broker, err := startBroker(redisUrl)
-	if err != nil {
-		panic("Failed to start broker: " + err.Error())
-	}
-
 	return &PersistentStorageWithCache{
 		client:            redisClient,
 		persistentStorage: persistentStorage,
-		broker:            broker,
 	}
 }
 
 type PersistentStorageWithCache struct {
 	client            *redis.Client
 	persistentStorage storage.Storage
-	broker            *machinery.Server
 }
 
 func (s *PersistentStorageWithCache) Subscribe(ctx context.Context, userId string, subscriber string) error {
@@ -98,30 +87,31 @@ func (s *PersistentStorageWithCache) Subscribe(ctx context.Context, userId strin
 	if err != nil {
 		return err
 	}
-	task := createAddSubscriptionTask(userId, subscriber)
-	asyncResult, err := s.broker.SendTaskWithContext(context.Background(), &task)
-	if err != nil {
-		return fmt.Errorf("could not send task: %s", err.Error())
-	}
-
-	results, err := asyncResult.Get(time.Duration(1 * time.Second))
-	if err != nil {
-		return fmt.Errorf("getting task result failed with error: %s", err.Error())
-	}
-	log.Printf("%v\n", tasks.HumanReadableResults(results))
 	return nil
 }
 
 func (s *PersistentStorageWithCache) GetSubscriptions(ctx context.Context, userId string) ([]string, error) {
-	panic("implement me")
+	subscriptions, err := s.persistentStorage.GetSubscriptions(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+	return subscriptions, nil
 }
 
 func (s *PersistentStorageWithCache) GetSubscribers(ctx context.Context, userId string) ([]string, error) {
-	panic("implement me")
+	subscribers, err := s.persistentStorage.GetSubscribers(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+	return subscribers, nil
 }
 
 func (s *PersistentStorageWithCache) Feed(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
-	panic("implement me")
+	feed, page, err := s.persistentStorage.Feed(ctx, userId, page, size)
+	if err != nil {
+		return nil, nil, err
+	}
+	return feed, page, nil
 }
 
 func (s *PersistentStorageWithCache) PatchPost(

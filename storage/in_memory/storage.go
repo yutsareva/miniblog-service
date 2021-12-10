@@ -26,6 +26,22 @@ func (p *Post) GetVersion() int64 {
 	return 0
 }
 
+func (p *Post) GetAuthorId() string {
+	return p.AuthorId
+}
+
+func (p *Post) GetText() string {
+	return p.Text
+}
+
+func (p *Post) GetCreatedAt() string {
+	return p.CreatedAt
+}
+
+func (p *Post) GetLastModifiedAt() string {
+	return p.LastModifiedAt
+}
+
 type InMemoryStorage struct {
 	mut           sync.RWMutex
 	posts         map[string]Post

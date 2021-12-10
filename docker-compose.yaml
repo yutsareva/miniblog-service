@@ -10,10 +10,23 @@ services:
       - 8080:8080
     environment:
       SERVER_PORT: '8080'
-      STORAGE_MODE: 'cached'
+      STORAGE_MODE: 'mongo'
       MONGO_URL: 'mongodb://database:27017'
       MONGO_DBNAME: 'miniblogs'
-      REDIS_URL: 'cache:6379'
+      REDIS_CACHE_URL: 'cache:6379'
+      REDIS_URL: 'redis://cache:6379'
+      APP_MODE: 'SERVER'
+  worker:
+    build: .
+    depends_on:
+      - database
+      - cache
+    environment:
+      STORAGE_MODE: 'mongo'
+      MONGO_URL: 'mongodb://database:27017'
+      MONGO_DBNAME: 'miniblogs'
+      REDIS_URL: 'redis://cache:6379'
+      APP_MODE: 'WORKER'
   database:
     image: mongo:4.4
     ports:

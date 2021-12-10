@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/RichardKnop/machinery/v1"
+	"github.com/RichardKnop/machinery/v1/tasks"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -73,21 +75,38 @@ type MongoStorage struct {
 	feed          *mongo.Collection
 }
 
-func (s *MongoStorage) Subscribe(ctx context.Context, userId string, subscriber string) error {
+type MongoStorageWithBroker struct {
+	mongo  *MongoStorage
+	broker *machinery.Server
+}
+
+func (s *MongoStorageWithBroker) Subscribe(ctx context.Context, userId string, subscriber string) error {
 	subscription := Subscription{
 		userId:         userId,
 		SubscriptionId: subscriber,
 	}
-	id, err := s.subscriptions.InsertOne(ctx, subscription)
+	id, err := s.mongo.subscriptions.InsertOne(ctx, subscription)
 	if err != nil {
 		return fmt.Errorf("failed to insert subscription: %w", storage.InternalError)
 	}
 	log.Printf("Created subscription with id %s: %s -> %s", id, userId, subscriber)
+
+	task := createAddSubscriptionTask(userId, subscriber)
+	asyncResult, err := s.broker.SendTaskWithContext(context.Background(), &task)
+	if err != nil {
+		return fmt.Errorf("could not send task: %s", err.Error())
+	}
+
+	results, err := asyncResult.Get(time.Duration(1 * time.Second))
+	if err != nil {
+		return fmt.Errorf("getting task result failed with error: %s", err.Error())
+	}
+	log.Printf("%v\n", tasks.HumanReadableResults(results))
 	return nil
 }
 
-func (s *MongoStorage) GetSubscriptions(ctx context.Context, userId string) ([]string, error) {
-	cursor, err := s.subscriptions.Find(
+func (s *MongoStorageWithBroker) GetSubscriptions(ctx context.Context, userId string) ([]string, error) {
+	cursor, err := s.mongo.subscriptions.Find(
 		ctx,
 		bson.D{
 			{"userId", userId},
@@ -114,8 +133,8 @@ func (s *MongoStorage) GetSubscriptions(ctx context.Context, userId string) ([]s
 	return subscriptions, nil
 }
 
-func (s *MongoStorage) GetSubscribers(ctx context.Context, userId string) ([]string, error) {
-	cursor, err := s.subscriptions.Find(
+func (s *MongoStorageWithBroker) GetSubscribers(ctx context.Context, userId string) ([]string, error) {
+	cursor, err := s.mongo.subscriptions.Find(
 		ctx,
 		bson.D{
 			{"subscriptionId", userId},
@@ -142,7 +161,7 @@ func (s *MongoStorage) GetSubscribers(ctx context.Context, userId string) ([]str
 	return subscribers, nil
 }
 
-func (s *MongoStorage) Feed(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
+func (s *MongoStorageWithBroker) Feed(ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
 	queryOptions := options.Find()
 	queryOptions.SetSort(bson.D{{"postId", -1}})
 	queryOptions.SetLimit(int64(size + 1))
@@ -155,7 +174,7 @@ func (s *MongoStorage) Feed(ctx context.Context, userId *string, page *string, s
 	if err != nil {
 		return nil, nil, fmt.Errorf("feed: failed to convert provided page to Mongo object id: %s, %w", err.Error(), storage.ClientError)
 	}
-	cursor, err := s.feed.Find(
+	cursor, err := s.mongo.feed.Find(
 		ctx,
 		bson.D{
 			{"authorId", *userId},
@@ -199,7 +218,7 @@ func (s *MongoStorage) Feed(ctx context.Context, userId *string, page *string, s
 	return posts, nil, nil
 }
 
-func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId string, text string) (models.Post, error) {
+func (s *MongoStorageWithBroker) PatchPost(ctx context.Context, postId string, userId string, text string) (models.Post, error) {
 	var result Post
 	postMongoId, err := primitive.ObjectIDFromHex(postId)
 	if err != nil {
@@ -222,11 +241,11 @@ func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId stri
 		ReturnDocument: &after,
 		Upsert:         &upsert,
 	}
-	mongoResult := s.posts.FindOneAndUpdate(ctx, filter, update, &opt)
+	mongoResult := s.mongo.posts.FindOneAndUpdate(ctx, filter, update, &opt)
 	err = mongoResult.Err()
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			err = s.posts.FindOne(ctx, bson.M{"_id": postMongoId}).Decode(&result)
+			err = s.mongo.posts.FindOne(ctx, bson.M{"_id": postMongoId}).Decode(&result)
 			if err == nil {
 				return nil, fmt.Errorf("post %s is owned by another user: %s %w", postId, result.AuthorId, storage.Forbidden)
 			}
@@ -242,7 +261,7 @@ func (s *MongoStorage) PatchPost(ctx context.Context, postId string, userId stri
 	return &result, nil
 }
 
-func (s *MongoStorage) GetPostsByUserId(
+func (s *MongoStorageWithBroker) GetPostsByUserId(
 	ctx context.Context, userId *string, page *string, size int) ([]models.Post, *string, error) {
 
 	queryOptions := options.Find()
@@ -257,7 +276,7 @@ func (s *MongoStorage) GetPostsByUserId(
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to convert provided page to Mongo object id: %s, %w", err.Error(), storage.ClientError)
 	}
-	cursor, err := s.posts.Find(
+	cursor, err := s.mongo.posts.Find(
 		ctx,
 		bson.D{
 			{"authorId", *userId},
@@ -294,7 +313,7 @@ func (s *MongoStorage) GetPostsByUserId(
 	return posts, nil, nil
 }
 
-func (s *MongoStorage) AddPost(ctx context.Context, userId string, text string) (models.Post, error) {
+func (s *MongoStorageWithBroker) AddPost(ctx context.Context, userId string, text string) (models.Post, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	post := Post{
 		Text:           text,
@@ -303,7 +322,7 @@ func (s *MongoStorage) AddPost(ctx context.Context, userId string, text string) 
 		LastModifiedAt: now,
 		Version:        0,
 	}
-	id, err := s.posts.InsertOne(ctx, post)
+	id, err := s.mongo.posts.InsertOne(ctx, post)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert post: %w", storage.InternalError)
 	}
@@ -311,13 +330,13 @@ func (s *MongoStorage) AddPost(ctx context.Context, userId string, text string) 
 	return &post, nil
 }
 
-func (s *MongoStorage) GetPost(ctx context.Context, postId string) (models.Post, error) {
+func (s *MongoStorageWithBroker) GetPost(ctx context.Context, postId string) (models.Post, error) {
 	var result Post
 	postMongoId, err := primitive.ObjectIDFromHex(postId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert provided id to Mongo object id %w", storage.NotFoundError)
 	}
-	err = s.posts.FindOne(ctx, bson.M{"_id": postMongoId}).Decode(&result)
+	err = s.mongo.posts.FindOne(ctx, bson.M{"_id": postMongoId}).Decode(&result)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, fmt.Errorf("no document with id %v: %w", postId, storage.NotFoundError)
@@ -327,7 +346,7 @@ func (s *MongoStorage) GetPost(ctx context.Context, postId string) (models.Post,
 	return &result, nil
 }
 
-func (s *MongoStorage) UpdateFeed(ctx context.Context, userId string, posts []models.Post) error {
+func (s *MongoStorageWithBroker) UpdateFeed(ctx context.Context, userId string, posts []models.Post) error {
 	var feedItems []interface{}
 	for _, post := range posts {
 		postId, _ := primitive.ObjectIDFromHex(post.GetId())
@@ -341,8 +360,8 @@ func (s *MongoStorage) UpdateFeed(ctx context.Context, userId string, posts []mo
 		}
 		feedItems = append(feedItems, feedItem)
 	}
-
-	_, err := s.feed.InsertMany(ctx, feedItems)
+	log.Printf("Insert feed %d", len(posts))
+	_, err := s.mongo.feed.InsertMany(ctx, feedItems)
 	if err != nil {
 		return fmt.Errorf("failed to insert post: %w", storage.InternalError)
 	}
@@ -350,11 +369,13 @@ func (s *MongoStorage) UpdateFeed(ctx context.Context, userId string, posts []mo
 }
 
 var mongoStorage *MongoStorage
-var once sync.Once
+var mongoStorageWithoutBroker *MongoStorageWithBroker
+var onceMongo sync.Once
+var onceStorage sync.Once
 
 func CreateMongoStorage(dbUrl, dbName string) *MongoStorage {
 	// make singleton
-	once.Do(func() {
+	onceMongo.Do(func() {
 		ctx := context.Background()
 		client, err := mongo.Connect(ctx, options.Client().ApplyURI(dbUrl))
 		if err != nil {
@@ -375,8 +396,20 @@ func CreateMongoStorage(dbUrl, dbName string) *MongoStorage {
 	return mongoStorage
 }
 
-func GetMongoStorage() *MongoStorage {
-	once.Do(func() {
+func CreateMongoStorageWithBroker(dbUrl, dbName, brokerUrl string) *MongoStorageWithBroker {
+	broker, err := startBroker(brokerUrl)
+	if err != nil {
+		panic("Failed to start broker: " + err.Error())
+	}
+
+	return &MongoStorageWithBroker{
+		mongo:  CreateMongoStorage(dbUrl, dbName),
+		broker: broker,
+	}
+}
+
+func GetMongoStorageWithoutBroker() *MongoStorageWithBroker {
+	onceStorage.Do(func() {
 		mongoUrl, found := os.LookupEnv("MONGO_URL")
 		if !found {
 			panic("'MONGO_URL' not specified")
@@ -385,7 +418,10 @@ func GetMongoStorage() *MongoStorage {
 		if !found {
 			panic("'MONGO_DBNAME' not specified")
 		}
-		mongoStorage = CreateMongoStorage(mongoUrl, mongoDbName)
+		mongoStorageWithoutBroker = &MongoStorageWithBroker{
+			mongo:  CreateMongoStorage(mongoUrl, mongoDbName),
+			broker: nil,
+		}
 	})
-	return mongoStorage
+	return mongoStorageWithoutBroker
 }

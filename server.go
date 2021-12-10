@@ -25,8 +25,8 @@ const (
 type AppMode string
 
 const (
-	ServerMode AppMode = "server"
-	WorkerMode         = "worker"
+	ServerMode AppMode = "SERVER"
+	WorkerMode         = "WORKER"
 )
 
 func CreateServer() *http.Server {
@@ -53,15 +53,19 @@ func CreateServer() *http.Server {
 		if !found {
 			panic("'MONGO_DBNAME' not specified")
 		}
+		brokerUrl, found := os.LookupEnv("REDIS_URL")
+		if !found {
+			panic("'REDIS_URL' was not specified for 'cached' STORAGE_MODE")
+		}
 		if StorageMode(storageMode) == Mongo {
-			storage = persistent.CreateMongoStorage(mongoUrl, mongoDbName)
+			storage = persistent.CreateMongoStorageWithBroker(mongoUrl, mongoDbName, brokerUrl)
 		} else if StorageMode(storageMode) == MongoWithCache {
-			redisUrl, found := os.LookupEnv("REDIS_URL")
+			cacheUrl, found := os.LookupEnv("REDIS_CACHE_URL")
 			if !found {
-				panic("'REDIS_URL' was not specified for 'cached' STORAGE_MODE")
+				panic("'REDIS_CACHE_URL' was not specified for 'cached' STORAGE_MODE")
 			}
-			persistentStorage := persistent.CreateMongoStorage(mongoUrl, mongoDbName)
-			storage = persistent_cached.CreatePersistentStorageCachedWithRedis(persistentStorage, redisUrl)
+			persistentStorage := persistent.CreateMongoStorageWithBroker(mongoUrl, mongoDbName, brokerUrl)
+			storage = persistent_cached.CreatePersistentStorageCachedWithRedis(persistentStorage, cacheUrl)
 
 		} else {
 			panic("Invalid 'STORAGE_MODE'")
@@ -103,7 +107,7 @@ func main() {
 		if !found {
 			panic("'REDIS_URL' was not specified for 'cached' STORAGE_MODE")
 		}
-		if err := persistent_cached.CreateWorker(redisUrl); err != nil {
+		if err := persistent.CreateWorker(redisUrl); err != nil {
 			panic("Failed to start worker: " + err.Error())
 		}
 	default:

@@ -1,4 +1,4 @@
-package persistent_cached
+package persistent
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	//"go.mongodb.org/mongo-driver/mongo"
 	//"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
-	"miniblog/storage/persistent"
 	//"sync"
 	//"github.com/RichardKnop/machinery/v1/log"
 	//"github.com/RichardKnop/machinery/v1/tasks"
@@ -20,21 +19,26 @@ const (
 
 func addSubscription(userId, subscriber string) (int, error) {
 	addedPostCount := 0
-	mongo := persistent.GetMongoStorage()
-	page := ""
+	log.Printf("addSubscription get storage")
+	mongo := GetMongoStorageWithoutBroker()
+	var page string
+	log.Printf("Start")
 
 	for true {
+		log.Printf("GetPostsByUserId")
 		posts, maybePage, err := mongo.GetPostsByUserId(context.Background(), &userId, &page, PAGE_SIZE)
 		if err != nil {
 			log.Printf("Failed to process subscription: %s; %s -> %s", err.Error(), subscriber, userId)
 			return 0, err
 		}
+		log.Printf("Got %d posts", len(posts))
 
 		err = mongo.UpdateFeed(context.Background(), userId, posts)
 		if err != nil {
 			log.Printf("Failed to process subscription: %s; %s -> %s", err.Error(), subscriber, userId)
 			return 0, err
 		}
+		log.Printf("Added %d posts", len(posts))
 
 		addedPostCount += len(posts)
 		if maybePage != nil {
@@ -46,12 +50,31 @@ func addSubscription(userId, subscriber string) (int, error) {
 	return addedPostCount, nil
 }
 
-func startBroker(redisUrl string) (*machinery.Server, error) {
+func CreateWorker(redisUrl string) error {
+	consumerTag := "machinery_worker"
+
+	broker, err := startBroker(redisUrl)
+	if err != nil {
+		return err
+	}
+
+	worker := broker.NewWorker(consumerTag, 0)
+
+	errorhandler := func(err error) {
+		log.Printf("Something went wrong: %s", err)
+	}
+
+	worker.SetErrorHandler(errorhandler)
+
+	return worker.Launch()
+}
+
+func startBroker(brokerUrl string) (*machinery.Server, error) {
 	cnf := &config.Config{
 		DefaultQueue:    "machinery_tasks",
 		ResultsExpireIn: 3600,
-		Broker:          redisUrl, // "redis://localhost:6379"
-		ResultBackend:   redisUrl,
+		Broker:          brokerUrl, // "redis://localhost:6379"
+		ResultBackend:   brokerUrl,
 		Redis: &config.RedisConfig{
 			MaxIdle:                3,
 			IdleTimeout:            240,
@@ -72,25 +95,6 @@ func startBroker(redisUrl string) (*machinery.Server, error) {
 		"addSubscription": addSubscription,
 	}
 	return server, server.RegisterTasks(tasks)
-}
-
-func CreateWorker(redisUrl string) error {
-	consumerTag := "machinery_worker"
-
-	broker, err := startBroker(redisUrl)
-	if err != nil {
-		return err
-	}
-
-	worker := broker.NewWorker(consumerTag, 0)
-
-	errorhandler := func(err error) {
-		log.Printf("Something went wrong: %s", err)
-	}
-
-	worker.SetErrorHandler(errorhandler)
-
-	return worker.Launch()
 }
 
 func createAddSubscriptionTask(userId, subscriber string) tasks.Signature {
