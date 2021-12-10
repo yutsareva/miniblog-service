@@ -30,12 +30,12 @@ func (h *HTTPHandler) HandleGetSubscribers(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	subscriptionsResponse := Subscriptions{
+	subscribersResponse := Subscribers{
 		subscriptions,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	rawResponse, err := json.Marshal(subscriptionsResponse)
+	rawResponse, err := json.Marshal(subscribersResponse)
 	if err != nil {
 		log.Printf("Failed to dump subscriptions to json: %s", err.Error())
 		http.Error(w, INTERNAL_ERROR_MESSAGE, http.StatusInternalServerError)
