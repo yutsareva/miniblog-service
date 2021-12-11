@@ -12,7 +12,7 @@ import (
 	"log"
 	"miniblog/storage"
 	"miniblog/storage/models"
-	"os"
+	"miniblog/utils"
 	"sync"
 	"time"
 )
@@ -484,14 +484,8 @@ func CreateMongoStorageWithBroker(dbUrl, dbName, brokerUrl string) *MongoStorage
 
 func GetMongoStorageWithoutBroker() *MongoStorageWithBroker {
 	onceStorage.Do(func() {
-		mongoUrl, found := os.LookupEnv("MONGO_URL")
-		if !found {
-			panic("'MONGO_URL' not specified")
-		}
-		mongoDbName, found := os.LookupEnv("MONGO_DBNAME")
-		if !found {
-			panic("'MONGO_DBNAME' not specified")
-		}
+		mongoUrl := utils.GetEnvVar("MONGO_URL")
+		mongoDbName := utils.GetEnvVar("MONGO_DBNAME")
 		mongoStorageWithoutBroker = &MongoStorageWithBroker{
 			mongo:  CreateMongoStorage(mongoUrl, mongoDbName),
 			broker: nil,

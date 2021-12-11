@@ -9,6 +9,7 @@ import (
 	"miniblog/storage/in_memory"
 	"miniblog/storage/persistent"
 	"miniblog/storage/persistent_cached"
+	"miniblog/utils"
 	"net/http"
 	"os"
 	"time"
@@ -32,41 +33,22 @@ const (
 func CreateServer() *http.Server {
 	r := mux.NewRouter()
 
-	port, found := os.LookupEnv("SERVER_PORT")
-	if !found {
-		port = "8080"
-	}
+	port := utils.GetEnvVarWithDefault("SERVER_PORT", "8080")
+	storageMode := utils.GetEnvVarWithDefault("STORAGE_MODE", "mongo")
 
-	storageMode, found := os.LookupEnv("STORAGE_MODE")
-	if !found {
-		storageMode = "mongo"
-	}
 	var storage storage.Storage
 	if StorageMode(storageMode) == InMemory {
 		storage = in_memory.CreateInMemoryStorage()
 	} else {
-		mongoUrl, found := os.LookupEnv("MONGO_URL")
-		if !found {
-			panic("'MONGO_URL' not specified")
-		}
-		mongoDbName, found := os.LookupEnv("MONGO_DBNAME")
-		if !found {
-			panic("'MONGO_DBNAME' not specified")
-		}
-		brokerUrl, found := os.LookupEnv("REDIS_URL")
-		if !found {
-			panic("'REDIS_URL' was not specified for 'cached' STORAGE_MODE")
-		}
+		mongoUrl := utils.GetEnvVar("MONGO_URL")
+		mongoDbName := utils.GetEnvVar("MONGO_DBNAME")
+		brokerUrl := "redis://" + utils.GetEnvVar("REDIS_URL")
 		if StorageMode(storageMode) == Mongo {
-			storage = persistent.CreateMongoStorageWithBroker(mongoUrl, mongoDbName, "redis://" + brokerUrl)
+			storage = persistent.CreateMongoStorageWithBroker(mongoUrl, mongoDbName, brokerUrl)
 		} else if StorageMode(storageMode) == MongoWithCache {
-			cacheUrl, found := os.LookupEnv("REDIS_CACHE_URL")
-			if !found {
-				panic("'REDIS_CACHE_URL' was not specified for 'cached' STORAGE_MODE")
-			}
-			persistentStorage := persistent.CreateMongoStorageWithBroker(mongoUrl, mongoDbName, "redis://" + brokerUrl)
+			cacheUrl := utils.GetEnvVar("REDIS_CACHE_URL")
+			persistentStorage := persistent.CreateMongoStorageWithBroker(mongoUrl, mongoDbName, brokerUrl)
 			storage = persistent_cached.CreatePersistentStorageCachedWithRedis(persistentStorage, cacheUrl)
-
 		} else {
 			panic("Invalid 'STORAGE_MODE'")
 		}
@@ -103,11 +85,8 @@ func main() {
 		log.Printf("Start serving on %s", srv.Addr)
 		log.Fatal(srv.ListenAndServe())
 	case WorkerMode:
-		redisUrl, found := os.LookupEnv("REDIS_URL")
-		if !found {
-			panic("'REDIS_URL' was not specified for 'cached' STORAGE_MODE")
-		}
-		if err := persistent.CreateWorker("redis://" + redisUrl); err != nil {
+		brokerUrl := "redis://" + utils.GetEnvVar("REDIS_URL")
+		if err := persistent.CreateWorker(brokerUrl); err != nil {
 			panic("Failed to start worker: " + err.Error())
 		}
 	default:
